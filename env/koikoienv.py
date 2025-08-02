@@ -113,7 +113,7 @@ class KoiKoiEnv(gym.Env):
 
         yakus, round_points = detect_yaku(self.collected)
         if yakus:
-            print("🎉 Yaku detected:", yakus)
+            print("Yaku detected:", yakus)
             # For now, just add points and continue
             self.your_score += round_points
             reward += round_points  # adjust this to balance early RL
