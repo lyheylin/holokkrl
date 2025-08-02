@@ -9,7 +9,7 @@ class KoiKoiEnv(gym.Env):
     def __init__(self):
         super(KoiKoiEnv, self).__init__()
         
-        # -- Example Action and Observation Setup --
+        # -- Action and Observation Setup --
         self.max_hand_size = 8
         self.field_size = 8
         self.deck_size = 48
@@ -17,11 +17,19 @@ class KoiKoiEnv(gym.Env):
         # Card IDs from 0 to 47
         self.num_cards = 48
 
-        # Action = play one card + choose match (0 = do nothing / illegal) E.g. (2,4) = play hand[2], match with field[4].
-        self.action_space = spaces.Tuple((
-            spaces.Discrete(self.max_hand_size),       # play from hand
-            spaces.Discrete(self.field_size + 1)       # match with field (or "no match" = field_size)
-        ))
+        # Player state flags
+        self.koikoi_pending = False
+        self.pending_yaku = []
+        self.pending_player = None
+        self.koikoi_declared = [False, False]  # One for each player
+
+        # Action = play one card + choose match (0 = do nothing / illegal) (play hand x * match field y)
+        self.num_play_actions = self.max_hand_size * (self.field_size + 1)  # 8 * 9 = 72 
+        self.KOIKOI_ACTION = self.num_play_actions
+        self.STOP_ACTION = self.num_play_actions + 1
+        self.total_actions = self.num_play_actions + 2
+
+        self.action_space = spaces.Discrete(self.total_actions)
 
         # Observation = flattened card representations (hand, field, scores)
         self.observation_space = spaces.Dict({
@@ -64,16 +72,34 @@ class KoiKoiEnv(gym.Env):
         return obs
 
     def step(self, action):
-        hand_idx, field_idx = action
+        # -- Handle Koi-Koi or Stop Decision --
+        if self.koikoi_pending:
+            if action == self.KOIKOI_ACTION:
+                self.koikoi_declared[self.pending_player] = True
+                self.koikoi_pending = False
+                return self._get_obs(), 0, False, {"koikoi": True}
+            elif action == self.STOP_ACTION:
+                reward = sum(y[1] for y in self.pending_yaku)
+                self.koikoi_pending = False
+                return self._get_obs(), reward, True, {"stopped": True, "yaku": self.pending_yaku}
+            else:
+                return self._get_obs(), -1, False, {"error": "Invalid action during Koi-Koi decision."}
+
+        try:
+                hand_idx = action // (self.field_size + 1)
+                field_idx = action % (self.field_size + 1)
+        except ValueError:
+            return self._get_obs(), -1, True, {"error": "Malformed action."}
 
         if hand_idx >= len(self.hand):
-            return self._get_obs(), -1, True, False, {}
+            return self._get_obs(), -1, True, {"error": "Invalid hand index."}
 
         played_card = self.hand.pop(hand_idx)
         played_month = get_month(played_card)
 
         # Build list of matches
         matching_field_cards = [c for c in self.field if get_month(c) == played_month]
+        reward = 0
 
         # Case 1: Match declared
         if field_idx < len(self.field):
@@ -82,17 +108,14 @@ class KoiKoiEnv(gym.Env):
             if selected_field_card in matching_field_cards:
                 self.field.remove(selected_field_card)
                 self.collected.extend([played_card, selected_field_card])
-                reward = 1
+                reward += 1
             else:
             # Invalid match attempt
-                reward = -1
-                terminated = True
-                return self._get_obs(), reward, terminated, False, {}
+                return self._get_obs(), -1, True, False, {"error": "Illegal match attempted."} # reward -1, terminated 
 
         # Case 2: No match or player chooses not to match
         else:
             self.field.append(played_card)
-            reward = 0
 
         # Draw a card from the deck
         if self.deck:
@@ -106,7 +129,7 @@ class KoiKoiEnv(gym.Env):
             matched_card = matching_field_cards[0]
             self.field.remove(matched_card)
             self.collected.extend([drawn_card, matched_card])
-            # Optionally add extra reward here if you want
+            # Optionally: add extra reward here 
         else:
             # No match, place drawn card on field
             self.field.append(drawn_card)
@@ -115,8 +138,15 @@ class KoiKoiEnv(gym.Env):
         if yakus:
             print("Yaku detected:", yakus)
             # For now, just add points and continue
+            self.pending_yaku = yakus
             self.your_score += round_points
             reward += round_points  # adjust this to balance early RL
+
+        
+        if not self.koikoi_declared[self.turn]:
+            self.koikoi_pending = True
+            self.pending_player = self.turn
+            return self._get_obs(), 0, False, {"yaku": self.pending_yaku, "awaiting_koikoi": True}
 
         done = len(self.hand) == 0 or len(self.deck) == 0
         info = {}
