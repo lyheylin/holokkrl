@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 from gym import spaces
+from card_utils import get_month
 
 class KoiKoiEnv(gym.Env):
     def __init__(self):
@@ -62,13 +63,16 @@ class KoiKoiEnv(gym.Env):
         if action < 0 or action >= len(self.hand):
             return self._get_obs(), -1, True, {}
 
-        # Simulate card play and matching logic (placeholder)
+        # Simulate card play and matching logic 
         played_card = self.hand.pop(action)
-        match_found = played_card in self.field  # simplistic match rule
 
-        if match_found:
-            self.field.remove(played_card)
-            self.collected.append(played_card)
+        played_month = get_month(played_card)
+        matches = [c for c in self.field if get_month(c) == played_month]
+
+        if matches:
+            matched_card = matches[0]  # pick one (can improve later)
+            self.field.remove(matched_card)
+            self.collected.extend([played_card, matched_card])
             reward = 1  # placeholder
         else:
             self.field.append(played_card)
