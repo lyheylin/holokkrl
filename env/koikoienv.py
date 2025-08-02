@@ -1,6 +1,6 @@
-import gym
+import gymnasium as gym
+from gymnasium import spaces
 import numpy as np
-from gym import spaces
 from card_utils import get_month
 
 class KoiKoiEnv(gym.Env):
@@ -15,8 +15,11 @@ class KoiKoiEnv(gym.Env):
         # Card IDs from 0 to 47
         self.num_cards = 48
 
-        # Action = play one card + choose match (0 = do nothing / illegal)
-        self.action_space = spaces.Discrete(self.max_hand_size)
+        # Action = play one card + choose match (0 = do nothing / illegal) E.g. (2,4) = play hand[2], match with field[4].
+        self.action_space = spaces.Tuple((
+            spaces.Discrete(self.max_hand_size),       # play from hand
+            spaces.Discrete(self.field_size + 1)       # match with field (or "no match" = field_size)
+        ))
 
         # Observation = flattened card representations (hand, field, scores)
         self.observation_space = spaces.Dict({
@@ -59,33 +62,52 @@ class KoiKoiEnv(gym.Env):
         return obs
 
     def step(self, action):
-        # Validate action
-        if action < 0 or action >= len(self.hand):
-            return self._get_obs(), -1, True, {}
+        hand_idx, field_idx = action
 
-        # Simulate card play and matching logic 
-        played_card = self.hand.pop(action)
+        if hand_idx >= len(self.hand):
+            return self._get_obs(), -1, True, False, {}
 
+        played_card = self.hand.pop(hand_idx)
         played_month = get_month(played_card)
-        matches = [c for c in self.field if get_month(c) == played_month]
 
-        if matches:
-            matched_card = matches[0]  # pick one (can improve later)
-            self.field.remove(matched_card)
-            self.collected.extend([played_card, matched_card])
-            reward = 1  # placeholder
+        # Build list of matches
+        matching_field_cards = [c for c in self.field if get_month(c) == played_month]
+
+        # Case 1: Match declared
+        if field_idx < len(self.field):
+            selected_field_card = self.field[field_idx]
+
+            if selected_field_card in matching_field_cards:
+                self.field.remove(selected_field_card)
+                self.collected.extend([played_card, selected_field_card])
+                reward = 1
+            else:
+            # Invalid match attempt
+                reward = -1
+                terminated = True
+                return self._get_obs(), reward, terminated, False, {}
+
+        # Case 2: No match or player chooses not to match
         else:
             self.field.append(played_card)
             reward = 0
 
         # Draw a card from the deck
         if self.deck:
-            drawn = self.deck.pop(0)
-            if drawn in self.field:
-                self.field.remove(drawn)
-                self.collected.append(drawn)
-            else:
-                self.field.append(drawn)
+            drawn_card = self.deck.pop(0)
+            drawn_month = get_month(drawn_card)
+
+            matching_field_cards = [c for c in self.field if get_month(c) == drawn_month]
+
+        if matching_field_cards:
+            # For now, auto-pick the first match
+            matched_card = matching_field_cards[0]
+            self.field.remove(matched_card)
+            self.collected.extend([drawn_card, matched_card])
+            # Optionally add extra reward here if you want
+        else:
+            # No match, place drawn card on field
+            self.field.append(drawn_card)
 
         done = len(self.hand) == 0 or len(self.deck) == 0
         info = {}
