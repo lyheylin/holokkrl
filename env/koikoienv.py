@@ -2,6 +2,8 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 from card_utils import get_month
+from card_utils import detect_yaku
+
 
 class KoiKoiEnv(gym.Env):
     def __init__(self):
@@ -108,6 +110,13 @@ class KoiKoiEnv(gym.Env):
         else:
             # No match, place drawn card on field
             self.field.append(drawn_card)
+
+        yakus, round_points = detect_yaku(self.collected)
+        if yakus:
+            print("🎉 Yaku detected:", yakus)
+            # For now, just add points and continue
+            self.your_score += round_points
+            reward += round_points  # adjust this to balance early RL
 
         done = len(self.hand) == 0 or len(self.deck) == 0
         info = {}
