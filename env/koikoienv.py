@@ -1,8 +1,8 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
-from card_utils import get_month
-from card_utils import detect_yaku
+from env.card_utils import get_month
+from env.card_utils import detect_yaku
 
 
 class KoiKoiEnv(gym.Env):

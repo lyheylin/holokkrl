@@ -1,9 +1,9 @@
 # card_utils.py
 
-from card_data import CARD_DATA
+from env.card_data import CARD_DATA
 
-CARD_ID_TO_MONTH = {cid: month for cid, month, _ in CARD_DATA}
-CARD_ID_TO_TYPE = {cid: ctype for cid, _, ctype in CARD_DATA}
+CARD_ID_TO_MONTH = {cid: month for cid, month, _, _ in CARD_DATA}
+CARD_ID_TO_TYPE = {cid: ctype for cid, _, ctype, _ in CARD_DATA}
 
 
 #preprocess
