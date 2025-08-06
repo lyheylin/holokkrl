@@ -1,4 +1,4 @@
-from env.koikoienv import KoiKoiEnv
+from environment.koikoienv import KoiKoiEnv
 
 def display_cards(cards):
     return [f"{card} (Month {card // 4 + 1})" for card in cards]
