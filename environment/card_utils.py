@@ -2,9 +2,12 @@
 
 from environment.card_data import CARD_DATA
 
-CARD_ID_TO_MONTH = {cid: month for cid, month, _, _ in CARD_DATA}
-CARD_ID_TO_TYPE = {cid: ctype for cid, _, ctype, _ in CARD_DATA}
+CARD_INFO = {card_id: (month, type_, subtype) for card_id, month, type_, subtype in CARD_DATA}
 
+MONTH_NAMES = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+]
 
 #preprocess
 TYPE_MAP = {}
@@ -15,11 +18,32 @@ for card_id, _, card_type, sub_type in CARD_DATA:
     if sub_type:
         SUBTYPE_MAP.setdefault(sub_type, set()).add(card_id)
 
+
+def get_card_info(card_id):
+    month, type_, subtype = CARD_INFO[card_id]
+    return {
+        "id": card_id,
+        "month": month,
+        "month_name": MONTH_NAMES[month],
+        "type": type_,
+        "subtype": subtype
+    }
+
+def format_card(card_id):
+    info = get_card_info(card_id)
+    label = f"[{info['id']:02d}] {info['month_name']} - {info['type']}"
+    if info['subtype']:
+        label += f" ({info['subtype']})"
+    return label
+
+def format_hand(cards):
+    return ", ".join(format_card(cid) for cid in sorted(cards))
+
 def get_month(card_id):
-    return CARD_ID_TO_MONTH[card_id]
+    return get_card_info(card_id)['month']
 
 def get_type(card_id):
-    return CARD_ID_TO_TYPE[card_id]
+    return get_card_info(card_id)['type']
 
 def detect_yaku(collected):
     yaku = []

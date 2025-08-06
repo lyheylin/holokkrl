@@ -1,3 +1,4 @@
+from environment.card_utils import format_card, format_hand
 from environment.koikoienv import KoiKoiEnv
 
 def display_cards(cards):
@@ -5,13 +6,15 @@ def display_cards(cards):
 
 def print_game_state(env):
     print("\n--- Game State ---")
-    print(f"Field:       {display_cards(env.field)}")
-    print(f"Your Hand:   {display_cards(env.player_hands[0])}")
-    print(f"Your Collected:   {display_cards(env.collected_cards[0])}")
-    print(f"Opponent Collected: {display_cards(env.collected_cards[1])}")
+    print(f"Field:               {format_hand(env.field)}")
+    print(f"Your Hand:           {format_hand(env.player_hands[0])}")
+    print(f"Your Collected:      {format_hand(env.collected_cards[0])}")
+    print(f"Opponent Collected:  {format_hand(env.collected_cards[1])}")
     print(f"Deck: {len(env.deck)} cards remaining")
     print(f"Your Score: {env.your_score} | Opponent Score: {env.opponent_score}")
     print(f"Pending Yaku: {env.pending_yaku if env.koikoi_pending else 'None'}")
+
+
 
 def test_game():
     env = KoiKoiEnv()
@@ -31,11 +34,11 @@ def test_game():
         else:
             print("Choose a card to play and field match index:")
             for i, card in enumerate(env.player_hands[0]):
-                print(f"{i}: {card} (Month {card // 4 + 1})")
+                print(f"{i}: {format_card(card)}")
             hand_idx = int(input("Card index to play: "))
             print("Matching with:")
             for i, card in enumerate(env.field):
-                print(f"{i}: {card} (Month {card // 4 + 1})")
+                print(f"{i}: {format_card(card)}")
             print(f"{len(env.field)}: No match")
             field_idx = int(input("Field index to match (or No Match): "))
             action = hand_idx * (env.field_size + 1) + field_idx
