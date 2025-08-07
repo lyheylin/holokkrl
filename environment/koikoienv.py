@@ -82,6 +82,13 @@ class KoiKoiEnv(gym.Env):
         }
         return obs
 
+    # List of keys of info to return
+    # "played_card": the card the player played
+    # "player_field_match": the matched field card (or None)
+    # "player_drawn_card": the drawn card
+    # "player_draw_match": matched field card from draw (or None)
+    # "yaku": list of player yakus (if formed)
+    # "awaiting_koikoi": True if awaiting decision
     def step(self, action):
         hand = self.player_hands[0]
         collected = self.collected_cards[0]
@@ -127,10 +134,12 @@ class KoiKoiEnv(gym.Env):
                 return self._get_obs(), -1, True, {"error": "Illegal match attempted."}
         else:
             self.field.append(played_card)
+            info["player_field_match"] = None
 
         # Player Draw Phase
         if self.deck:
             drawn_card = self.deck.pop(0)
+            info["player_drawn_card"] = drawn_card
             drawn_month = get_month(drawn_card)
             matching_drawn = [c for c in self.field if get_month(c) == drawn_month]
 
@@ -138,8 +147,10 @@ class KoiKoiEnv(gym.Env):
                 matched_card = matching_drawn[0]
                 self.field.remove(matched_card)
                 collected.extend([drawn_card, matched_card])
+                info["player_draw_match"] = matched_card
             else:
                 self.field.append(drawn_card)
+                info["player_draw_match"] = None
 
         # Yaku Check for Player
         yakus, points = detect_yaku(collected)
@@ -147,18 +158,22 @@ class KoiKoiEnv(gym.Env):
             self.pending_yaku = yakus
             self.your_score += points
             reward += points
+            info["yaku"] = yakus
             if not self.koikoi_declared[self.turn]:
                 self.koikoi_pending = True
                 self.pending_player = self.turn
-                return self._get_obs(), 0, False, {"yaku": yakus, "awaiting_koikoi": True}
+                info["awaiting_koikoi"] = True
+                return self._get_obs(), 0, False, info
 
         # Game End Check
         if self._check_game_end():
-            return self._get_obs(), reward, True, {"game_end": True}
+            info["game_end"] = True
+            return self._get_obs(), reward, True, info
 
         # Opponent Turn
         self.turn = 1  # Switch to opponent
-        opponent_done = self._opponent_turn()
+        opponent_info, opponent_done = self._opponent_turn()
+        info.update(opponent_info)
 
         # Final Check After Opponent Turn
         done = opponent_done or self._check_game_end()
@@ -166,12 +181,19 @@ class KoiKoiEnv(gym.Env):
 
         return self._get_obs(), reward, done, info
 
-
+    # List of keys of info to return:
+    # "opponent_played_card"
+    # "opponent_play_match"
+    # "opponent_drawn_card"
+    # "opponent_draw_match"
+    # "opponent_yaku": opponent yaku list (if any)
+    # "opponent_koikoi": True if they chose koi-koi, False if they stopped
     def _opponent_turn(self):
         hand = self.player_hands[1]
         collected = self.collected_cards[1]
         reward = 0
         done = False
+        info = {}
 
         # Opponent Match Phase
         if hand:
@@ -181,41 +203,50 @@ class KoiKoiEnv(gym.Env):
             ]
             card_to_play = self.rng.choice(matching_cards if matching_cards else hand)
             hand.remove(card_to_play)
+            info["opponent_played_card"] = card_to_play
 
             matches = [c for c in self.field if get_month(c) == get_month(card_to_play)]
             if matches:
                 match = self.rng.choice(matches)
                 self.field.remove(match)
                 collected.extend([card_to_play, match])
+                info["opponent_play_match"] = match
             else:
                 self.field.append(card_to_play)
+                info["opponent_play_match"] = None
 
         # Opponent Draw Phase
         if self.deck:
             drawn_card = self.deck.pop(0)
+            info["opponent_drawn_card"] = drawn_card
             matches = [c for c in self.field if get_month(c) == get_month(drawn_card)]
             if matches:
                 match = self.rng.choice(matches)
                 self.field.remove(match)
                 collected.extend([drawn_card, match])
+                info["opponent_draw_match"] = match
             else:
                 self.field.append(drawn_card)
+                info["opponent_draw_match"] = None
 
         # Yaku Check for Opponent
         yakus, points = detect_yaku(collected)
         if yakus:
+            info["opponent_yaku"] = yakus
             self.opponent_score += points
             if self.opponent_koikoi:
                 # Continue playing, already declared
-                return False
+                return info, False
             elif self.rng.random() < 0.3:  # Random Koi-Koi
                 self.opponent_koikoi = True
-                return False
+                info["opponent_koikoi"] = True
+                return info, False
             else:
                 # Opponent stops the round
-                return True
+                info["opponent_koikoi"] = False
+                return info, True
 
-        return False
+        return info, False
 
 
     def render(self, mode='human'):
