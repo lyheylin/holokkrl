@@ -36,8 +36,12 @@ class KoiKoiEnv(gym.Env):
         self.observation_space = spaces.Dict({
             "hand": spaces.MultiBinary(self.num_cards),
             "field": spaces.MultiBinary(self.num_cards),
+            "cards_left_in_deck": spaces.Discrete(49),
+            "last_drawn_card": spaces.MultiBinary(self.num_cards),
             "collected": spaces.MultiBinary(self.num_cards),
+            "opponent_collected": spaces.MultiBinary(self.num_cards),
             "opponent_score": spaces.Discrete(100),
+            "round_score": spaces.Discrete(20),
             "your_score": spaces.Discrete(100),
             "turn": spaces.Discrete(2),
         })
@@ -56,8 +60,11 @@ class KoiKoiEnv(gym.Env):
         self.player_hands[1] = [self.deck.pop(0) for _ in range(self.max_hand_size)]  # Opponent
 
         self.field = [self.deck.pop(0) for _ in range(self.field_size)]
+        self.last_drawn_card = None
         self.opponent_score = 0
         self.your_score = 0
+        self.opponent_round_score = 0
+        self.your_round_score = 0
         self.turn = 0
         self.opponent_koikoi = False
         self.player_koikoi = False
@@ -72,15 +79,19 @@ class KoiKoiEnv(gym.Env):
         return self._get_obs()
 
     def _get_obs(self):
-        obs = {
-            "hand": self._cards_to_binary(self.player_hands[self.turn]),
+        return {
+            "hand": self._cards_to_binary(self.player_hands[0]),
             "field": self._cards_to_binary(self.field),
-            "collected": self._cards_to_binary(self.collected_cards[self.turn]),
+            "cards_left_in_deck": len(self.deck),
+            "last_drawn_card": self._card_to_binary(self.last_drawn_card) if self.last_drawn_card else np.zeros(self.num_cards, dtype=np.int8),
+            "collected": self._cards_to_binary(self.collected_cards[0]),
+            "opponent_collected": self._cards_to_binary(self.collected_cards[1]),
+            "opponent_round_score": self.opponent_round_score,
             "opponent_score": self.opponent_score,
+            "your_round_score": self.your_round_score,
             "your_score": self.your_score,
             "turn": self.turn
         }
-        return obs
 
     # List of keys of info to return
     # "played_card": the card the player played
@@ -139,6 +150,7 @@ class KoiKoiEnv(gym.Env):
         # Player Draw Phase
         if self.deck:
             drawn_card = self.deck.pop(0)
+            self.last_drawn_card = drawn_card
             info["player_drawn_card"] = drawn_card
             drawn_month = get_month(drawn_card)
             matching_drawn = [c for c in self.field if get_month(c) == drawn_month]
@@ -157,6 +169,7 @@ class KoiKoiEnv(gym.Env):
         if yakus:
             self.pending_yaku = yakus
             self.your_score += points
+            self.your_round_score += points
             reward += points
             info["yaku"] = yakus
             if not self.koikoi_declared[self.turn]:
@@ -234,6 +247,7 @@ class KoiKoiEnv(gym.Env):
         if yakus:
             info["opponent_yaku"] = yakus
             self.opponent_score += points
+            self.opponent_round_score += points
             if self.opponent_koikoi:
                 # Continue playing, already declared
                 return info, False
@@ -257,10 +271,15 @@ class KoiKoiEnv(gym.Env):
         print(f"Score: You {self.your_score} - Opponent {self.opponent_score}")
 
     def _cards_to_binary(self, cards):
-        bin_vec = np.zeros(self.num_cards, dtype=int)
-        for c in cards:
-            bin_vec[c] = 1
-        return bin_vec
+        binary = np.zeros(self.num_cards, dtype=np.int8)
+        for card in cards:
+            binary[card.card_id] = 1
+        return binary
+
+    def _card_to_binary(self, card):
+        binary = np.zeros(self.num_cards, dtype=np.int8)
+        binary[card.card_id] = 1
+        return binary
     
     def _check_game_end(self):
         both_hands_empty = all(len(h) == 0 for h in self.player_hands)
