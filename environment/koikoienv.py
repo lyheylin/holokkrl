@@ -15,6 +15,11 @@ class KoiKoiEnv(gym.Env):
         self.deck_size = 48
         self.rng = np.random.default_rng()
 
+        # Game state
+        self.max_rounds = 3  # Or any number of rounds you want
+        self.round_count = 0
+        self.match_over = False
+
         # Card IDs from 0 to 47
         self.num_cards = 48
 
@@ -50,6 +55,12 @@ class KoiKoiEnv(gym.Env):
 
     def reset(self):
         # Initialize game state
+        if self.round_count >= self.max_rounds:
+            self.round_count = 0
+            self.your_score = 0
+            self.opponent_score = 0
+            self.match_over = False
+
         self.deck = list(range(self.num_cards))
         self.rng.shuffle(self.deck)
 
@@ -65,6 +76,7 @@ class KoiKoiEnv(gym.Env):
         self.your_score = 0
         self.opponent_round_score = 0
         self.your_round_score = 0
+        self.round_over = False
         self.turn = 0
         self.opponent_koikoi = False
         self.player_koikoi = False
@@ -116,7 +128,17 @@ class KoiKoiEnv(gym.Env):
             elif action == self.STOP_ACTION:
                 reward = sum(y[1] for y in self.pending_yaku)
                 self.koikoi_pending = False
-                return self._get_obs(), reward, True, {"stopped": True, "yaku": self.pending_yaku}
+                self.your_score += reward
+                self.your_round_score = reward
+                self.round_count += 1
+                done = True
+                info = {
+                    "stopped": True,
+                    "yaku": self.pending_yaku,
+                    "game_end": True,
+                    "match_over": self.round_count >= self.max_rounds
+                }
+                return self._get_obs(), reward, done, info
             else:
                 return self._get_obs(), -1, False, {"error": "Invalid action during Koi-Koi decision."}
 
@@ -140,6 +162,7 @@ class KoiKoiEnv(gym.Env):
             if selected_field_card in matching_field_cards:
                 self.field.remove(selected_field_card)
                 collected.extend([played_card, selected_field_card])
+                info["player_field_match"] = selected_field_card
                 reward += 1  # Basic reward for a successful match
             else:
                 return self._get_obs(), -1, True, {"error": "Illegal match attempted."}
@@ -180,8 +203,13 @@ class KoiKoiEnv(gym.Env):
 
         # Game End Check
         if self._check_game_end():
+            self.round_count += 1
+            if self.round_count >= self.max_rounds:
+                self.match_over = True
+            done = True
             info["game_end"] = True
-            return self._get_obs(), reward, True, info
+            info["match_over"] = self.match_over
+            return self._get_obs(), reward, done, info
 
         # Opponent Turn
         self.turn = 1  # Switch to opponent
@@ -273,7 +301,7 @@ class KoiKoiEnv(gym.Env):
     def _cards_to_binary(self, cards):
         binary = np.zeros(self.num_cards, dtype=np.int8)
         for card in cards:
-            binary[card.card_id] = 1
+            binary[card if isinstance(card, int) else card.card_id] = 1
         return binary
 
     def _card_to_binary(self, card):
