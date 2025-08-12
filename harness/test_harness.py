@@ -1,6 +1,14 @@
 from environment.card_utils import format_card, format_hand
 from environment.koikoienv import KoiKoiEnv
 from environment.card_data import CARD_DATA
+import logging
+
+# Configure logging
+logging.basicConfig(
+    filename=f"koikoi_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 def display_card(card):
     if card is None:
@@ -19,16 +27,21 @@ def display_cards(cards):
     return [display_card(card) for card in cards]
 
 def print_game_state(env):
+    state_str = (
+        f"Field:               {format_hand(env.field)}\n"
+        f"Your Hand:           {format_hand(env.player_hands[0])}\n"
+        f"Your Collected:      {format_hand(env.collected_cards[0])}\n"
+        f"Opponent Collected:  {format_hand(env.collected_cards[1])}\n"
+        f"Deck: {len(env.deck)} cards remaining\n"
+        f"Your Score: {env.your_score} | Opponent Score: {env.opponent_score}\n"
+        f"Pending Yaku: {env.pending_yaku if env.koikoi_pending else 'None'}"
+    )
     print("\n--- Game State ---")
-    print(f"Field:               {format_hand(env.field)}")
-    print(f"Your Hand:           {format_hand(env.player_hands[0])}")
-    print(f"Your Collected:      {format_hand(env.collected_cards[0])}")
-    print(f"Opponent Collected:  {format_hand(env.collected_cards[1])}")
-    print(f"Deck: {len(env.deck)} cards remaining")
-    print(f"Your Score: {env.your_score} | Opponent Score: {env.opponent_score}")
-    print(f"Pending Yaku: {env.pending_yaku if env.koikoi_pending else 'None'}")
+    print(state_str)
+    logging.info("GAME STATE:\n%s", state_str)
 
 def print_turn_info(info):
+    logging.info("TURN INFO: %s", info)
     print("\n--- Turn Summary ---")
 
     if "player_drawn_card" in info:
@@ -60,6 +73,7 @@ def test_game():
     terminated = False
     truncated = False
 
+    logging.info("GAME START")
     print("Welcome to the Koi-Koi test harness!\n")
 
     while not (terminated or truncated):
@@ -84,12 +98,16 @@ def test_game():
 
         obs, reward, terminated, truncated, info = env.step(action)
 
+        logging.info("STEP: action=%s, reward=%s, terminated=%s, truncated=%s, obs=%s, info=%s",
+                     action, reward, terminated, truncated, obs, info)
+
         print_turn_info(info)
 
         print(f"\nReward: {reward}")
         print(f"Info: {info}")
         print("-------------------------------")
 
+    logging.info("GAME OVER: Final Score: You %s | Opponent %s", env.your_score, env.opponent_score)
     print("Game Over!")
     print(f"Final Score: You {env.your_score} | Opponent {env.opponent_score}")
 
