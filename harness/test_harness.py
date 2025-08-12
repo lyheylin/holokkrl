@@ -2,13 +2,18 @@ from environment.card_utils import format_card, format_hand
 from environment.koikoienv import KoiKoiEnv
 from environment.card_data import CARD_DATA
 import logging
+import argparse
+from datetime import datetime
 
-# Configure logging
-logging.basicConfig(
-    filename=f"koikoi_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+def configure_logging(enable_logging):
+    if enable_logging:
+        logging.basicConfig(
+            filename=f"koikoi_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log",
+            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(message)s"
+        )
+    else:
+        logging.basicConfig(level=logging.CRITICAL)  # Suppress logging output
 
 def display_card(card):
     if card is None:
@@ -68,6 +73,7 @@ def print_turn_info(info):
     print("-------------------------------")
 
 def test_game():
+    configure_logging(enable_logging)
     env = KoiKoiEnv()
     obs, info = env.reset()
     terminated = False
@@ -112,4 +118,7 @@ def test_game():
     print(f"Final Score: You {env.your_score} | Opponent {env.opponent_score}")
 
 if __name__ == '__main__':
-    test_game()
+    parser = argparse.ArgumentParser(description="Koi-Koi Test Harness")
+    parser.add_argument("--log", action="store_true", help="Enable logging to file")
+    args = parser.parse_args()
+    test_game(enable_logging=args.log)
