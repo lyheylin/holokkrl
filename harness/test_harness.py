@@ -2,7 +2,6 @@ from environment.card_utils import format_card, format_hand
 from environment.koikoienv import KoiKoiEnv
 from environment.card_data import CARD_DATA
 
-
 def display_card(card):
     if card is None:
         return "None"
@@ -57,12 +56,13 @@ def print_turn_info(info):
 
 def test_game():
     env = KoiKoiEnv()
-    obs = env.reset()
-    done = False
+    obs, info = env.reset()
+    terminated = False
+    truncated = False
 
     print("Welcome to the Koi-Koi test harness!\n")
 
-    while not done:
+    while not (terminated or truncated):
         print_game_state(env)
 
         if env.koikoi_pending:
@@ -82,7 +82,7 @@ def test_game():
             field_idx = int(input("Field index to match (or No Match): "))
             action = hand_idx * (env.field_size + 1) + field_idx
 
-        obs, reward, done, info = env.step(action)
+        obs, reward, terminated, truncated, info = env.step(action)
 
         print_turn_info(info)
 
@@ -95,4 +95,3 @@ def test_game():
 
 if __name__ == '__main__':
     test_game()
-    
