@@ -53,8 +53,9 @@ class KoiKoiEnv(gym.Env):
 
         self.reset()
 
-    def reset(self):
-        # Initialize game state
+    def reset(self, *, seed=None, options=None):
+        super().reset(seed=seed)
+
         if self.round_count >= self.max_rounds:
             self.round_count = 0
             self.your_score = 0
@@ -67,8 +68,8 @@ class KoiKoiEnv(gym.Env):
         self.player_hands = [[], []]
         self.collected_cards = [[], []]
 
-        self.player_hands[0] = [self.deck.pop(0) for _ in range(self.max_hand_size)]  # Player
-        self.player_hands[1] = [self.deck.pop(0) for _ in range(self.max_hand_size)]  # Opponent
+        self.player_hands[0] = [self.deck.pop(0) for _ in range(self.max_hand_size)]
+        self.player_hands[1] = [self.deck.pop(0) for _ in range(self.max_hand_size)]
 
         self.field = [self.deck.pop(0) for _ in range(self.field_size)]
         self.last_drawn_card = None
@@ -85,10 +86,10 @@ class KoiKoiEnv(gym.Env):
         self.winner = None
         self.last_yaku = []
 
-        # Remove dealt cards from deck
-        # self.deck = self.deck[self.max_hand_size + self.field_size:]
+        obs = self._get_obs()
+        info = {}
+        return obs, info
 
-        return self._get_obs()
 
     def _get_obs(self):
         return {
@@ -115,7 +116,8 @@ class KoiKoiEnv(gym.Env):
     def step(self, action):
         hand = self.player_hands[0]
         collected = self.collected_cards[0]
-        done = False
+        terminated = False
+        truncated = False
         info = {}
         reward = 0
 
@@ -124,33 +126,35 @@ class KoiKoiEnv(gym.Env):
             if action == self.KOIKOI_ACTION:
                 self.koikoi_declared[self.pending_player] = True
                 self.koikoi_pending = False
-                return self._get_obs(), 0, False, {"koikoi": True}
+                return self._get_obs(), 0, False, False, {"koikoi": True}
             elif action == self.STOP_ACTION:
                 reward = sum(y[1] for y in self.pending_yaku)
                 self.koikoi_pending = False
                 self.your_score += reward
                 self.your_round_score = reward
                 self.round_count += 1
-                done = True
+                terminated = True
+                if self.round_count >= self.max_rounds:
+                    truncated = True
                 info = {
                     "stopped": True,
                     "yaku": self.pending_yaku,
                     "game_end": True,
                     "match_over": self.round_count >= self.max_rounds
                 }
-                return self._get_obs(), reward, done, info
+                return self._get_obs(), reward, terminated, truncated, info
             else:
-                return self._get_obs(), -1, False, {"error": "Invalid action during Koi-Koi decision."}
+                return self._get_obs(), -1, False, False, {"error": "Invalid action during Koi-Koi decision."}
 
         # Decode Action
         try:
             hand_idx = action // (self.field_size + 1)
             field_idx = action % (self.field_size + 1)
         except Exception:
-            return self._get_obs(), -1, True, {"error": "Malformed action."}
+            return self._get_obs(), -1, False, False, {"error": "Malformed action."}
 
         if hand_idx >= len(hand):
-            return self._get_obs(), -1, True, {"error": "Invalid hand index."}
+            return self._get_obs(), -1, False, False, {"error": "Invalid hand index."}
 
         played_card = hand.pop(hand_idx)
         played_month = get_month(played_card)
@@ -163,9 +167,9 @@ class KoiKoiEnv(gym.Env):
                 self.field.remove(selected_field_card)
                 collected.extend([played_card, selected_field_card])
                 info["player_field_match"] = selected_field_card
-                reward += 1  # Basic reward for a successful match
+                reward += 1 # Basic reward implementation //need update
             else:
-                return self._get_obs(), -1, True, {"error": "Illegal match attempted."}
+                return self._get_obs(), -1, False, False, {"error": "Illegal match attempted."}
         else:
             self.field.append(played_card)
             info["player_field_match"] = None
@@ -199,28 +203,32 @@ class KoiKoiEnv(gym.Env):
                 self.koikoi_pending = True
                 self.pending_player = self.turn
                 info["awaiting_koikoi"] = True
-                return self._get_obs(), 0, False, info
+                return self._get_obs(), 0, False, False, info
 
         # Game End Check
         if self._check_game_end():
             self.round_count += 1
             if self.round_count >= self.max_rounds:
-                self.match_over = True
-            done = True
+                truncated = True
+            terminated = True
             info["game_end"] = True
             info["match_over"] = self.match_over
-            return self._get_obs(), reward, done, info
+            return self._get_obs(), reward, terminated, truncated, info
 
         # Opponent Turn
         self.turn = 1  # Switch to opponent
-        opponent_info, opponent_done = self._opponent_turn()
+        opponent_info, opponent_terminated = self._opponent_turn()
         info.update(opponent_info)
 
         # Final Check After Opponent Turn
-        done = opponent_done or self._check_game_end()
-        self.turn = 0  # Back to player's turn
+        if opponent_terminated or self._check_game_end():
+            terminated = True
+            self.round_count += 1
+            if self.round_count >= self.max_rounds:
+                truncated = True
+        self.turn = 0 # Back to player's turn
 
-        return self._get_obs(), reward, done, info
+        return self._get_obs(), reward, terminated, truncated, info
 
     # List of keys of info to return:
     # "opponent_played_card"
