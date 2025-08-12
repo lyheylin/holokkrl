@@ -72,7 +72,7 @@ def print_turn_info(info):
         print(f"Opponent chose to: {'Koi-Koi' if info.get('opponent_koikoi') else 'Stop and score'}")
     print("-------------------------------")
 
-def test_game():
+def test_game(enable_logging):
     configure_logging(enable_logging)
     env = KoiKoiEnv()
     obs, info = env.reset()

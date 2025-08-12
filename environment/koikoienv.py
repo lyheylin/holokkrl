@@ -6,8 +6,9 @@ from environment.card_utils import detect_yaku
 
 
 class KoiKoiEnv(gym.Env):
-    def __init__(self):
+    def __init__(self, opponent_type="random"):
         super(KoiKoiEnv, self).__init__()
+        self.opponent_type = opponent_type
         
         # -- Action and Observation Setup --
         self.max_hand_size = 8
