@@ -36,8 +36,9 @@ class KoiKoiEnv(gym.Env):
             "last_drawn_card": spaces.MultiBinary(self.num_cards),
             "collected": spaces.MultiBinary(self.num_cards),
             "opponent_collected": spaces.MultiBinary(self.num_cards),
+            "opponent_round_score": spaces.Discrete(20),
             "opponent_score": spaces.Discrete(100),
-            "round_score": spaces.Discrete(20),
+            "your_round_score": spaces.Discrete(20),
             "your_score": spaces.Discrete(100),
             "turn": spaces.Discrete(2),
             "round": spaces.Discrete(self.max_rounds),
@@ -131,19 +132,27 @@ class KoiKoiEnv(gym.Env):
                 self.koikoi_pending = False
                 self.your_score += reward
                 self.your_round_score = reward
-                self.round_count += 1
-                terminated = True
-                if self.round_count >= self.max_rounds:
-                    truncated = True
-                info = {
+                self.round_over = True
+                info.update({
                     "stopped": True,
-                    "yaku": self.pending_yaku,
-                    "game_end": True,
-                    "match_over": self.round_count >= self.max_rounds
-                }
-                return self._get_obs(), reward, terminated, truncated, info
+                    "yaku": self.pending_yaku
+                })
             else:
                 return self._get_obs(), -1, False, False, {"error": "Invalid action during Koi-Koi decision."}
+
+        # Check if hand is empty before playing
+        if not hand:
+            self.round_over = True
+
+        if self.round_over:
+            self.round_count += 1
+            if self.round_count >= self.max_rounds:
+                terminated = True
+            else:
+                self._start_new_round()
+            info["round_over"] = True
+            info["match_over"] = self.round_count >= self.max_rounds
+            return self._get_obs(), reward, terminated, truncated, info
 
         # Decode Action
         try:
@@ -168,6 +177,7 @@ class KoiKoiEnv(gym.Env):
                 info["player_field_match"] = selected_field_card
                 reward += 1 # Basic reward implementation //need update
             else:
+                # hand.insert(hand_idx, played_card) 
                 return self._get_obs(), -1, False, False, {"error": "Illegal match attempted."}
         else:
             self.field.append(played_card)
@@ -204,28 +214,23 @@ class KoiKoiEnv(gym.Env):
                 info["awaiting_koikoi"] = True
                 return self._get_obs(), 0, False, False, info
 
-        # Game End Check
-        if self._check_game_end():
-            self.round_count += 1
-            if self.round_count >= self.max_rounds:
-                truncated = True
-            terminated = True
-            info["game_end"] = True
-            info["match_over"] = self.match_over
-            return self._get_obs(), reward, terminated, truncated, info
-
         # Opponent Turn
-        self.turn = 1  # Switch to opponent
-        opponent_info, opponent_terminated = self._opponent_turn()
+        self.turn = 1
+        opponent_info, opponent_round_end = self._opponent_turn()
         info.update(opponent_info)
 
-        # Final Check After Opponent Turn
-        if opponent_terminated or self._check_game_end():
-            terminated = True
+        self.round_over = self._check_round_end() or self.round_over or opponent_round_end
+        if self.round_over:
             self.round_count += 1
             if self.round_count >= self.max_rounds:
-                truncated = True
-        self.turn = 0 # Back to player's turn
+                terminated = True  # Gym expects episode over
+            else:
+                # Automatically start new round
+                self._start_new_round()
+
+        self.turn = 0  # back to player
+        info["round_over"] = self.round_over
+        info["match_over"] = self.round_count >= self.max_rounds
 
         return self._get_obs(), reward, terminated, truncated, info
 
@@ -242,25 +247,31 @@ class KoiKoiEnv(gym.Env):
         done = False
         info = {}
 
-        # Opponent Match Phase
-        if hand:
-            matching_cards = [c for c in hand if any(get_month(c) == get_month(card) for card in self.field)]
-            card_to_play = self.rng.choice(matching_cards if matching_cards else hand)
-            hand.remove(card_to_play)
-            info["opponent_played_card"] = card_to_play
+        if not hand:
+            # Opponent has no cards left, round ends
+            done = True
+            return info, done
 
-            matches = [c for c in self.field if get_month(c) == get_month(card_to_play)]
-            if matches:
-                match = self.rng.choice(matches)
-                self.field.remove(match)
-                collected.extend([card_to_play, match])
-                info["opponent_play_match"] = match
-            else:
-                self.field.append(card_to_play)
-                info["opponent_play_match"] = None
+        # --- Opponent Match Phase ---
+        matching_cards = [c for c in hand if any(get_month(c) == get_month(f) for f in self.field)]
+        card_to_play = self.rng.choice(matching_cards if matching_cards else hand)
+        hand.remove(card_to_play)
+        info["opponent_played_card"] = card_to_play
 
+        matches = [c for c in self.field if get_month(c) == get_month(card_to_play)]
+        if matches:
+            match = self.rng.choice(matches)
+            self.field.remove(match)
+            collected.extend([card_to_play, match])
+            info["opponent_play_match"] = match
+        else:
+            self.field.append(card_to_play)
+            info["opponent_play_match"] = None
+
+        # --- Opponent Draw Phase ---
         if self.deck:
             drawn_card = self.deck.pop(0)
+            info["opponent_drawn_card"] = drawn_card
             matches = [c for c in self.field if get_month(c) == get_month(drawn_card)]
             if matches:
                 match = self.rng.choice(matches)
@@ -270,25 +281,31 @@ class KoiKoiEnv(gym.Env):
             else:
                 self.field.append(drawn_card)
                 info["opponent_draw_match"] = None
-            info["opponent_drawn_card"] = drawn_card
 
-        # Yaku Check for Opponent
+        # --- Yaku Check for Opponent ---
         yakus, points = detect_yaku(collected)
         if yakus:
             info["opponent_yaku"] = yakus
             self.opponent_score += points
             self.opponent_round_score += points
-            if self.opponent_koikoi:
-                return info, False
-            elif self.rng.random() < 0.3:
-                self.opponent_koikoi = True
-                info["opponent_koikoi"] = True
-                return info, False
+            # Simple Koi-Koi logic: 30% chance to continue, otherwise stop
+            if not self.opponent_koikoi:
+                if self.rng.random() < 0.3:
+                    self.opponent_koikoi = True
+                    info["opponent_koikoi"] = True
+                else:
+                    info["opponent_koikoi"] = False
+                    done = True
             else:
-                info["opponent_koikoi"] = False
-                done = True
+                # Already in Koi-Koi, continue
+                info["opponent_koikoi"] = True
+
+        # --- Round End if Hand Empty ---
+        if not hand:
+            done = True
 
         return info, done
+
 
     def _check_round_end(self):
         hands_empty = all(len(h) == 0 for h in self.player_hands)
@@ -314,8 +331,3 @@ class KoiKoiEnv(gym.Env):
         if card is not None:
             binary[card] = 1
         return binary
-    
-    def _check_game_end(self):
-        both_hands_empty = all(len(h) == 0 for h in self.player_hands)
-        deck_empty = len(self.deck) == 0
-        return both_hands_empty or deck_empty
