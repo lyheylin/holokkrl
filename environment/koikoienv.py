@@ -16,7 +16,7 @@ class KoiKoiEnv(gym.Env):
         # -- Action and Observation Setup --
         self.max_hand_size = 8
         self.field_size = 8
-        self.deck_size = 48
+        self.num_cards = 48
         self.rng = np.random.default_rng()
         self.max_rounds = max_rounds
         
@@ -306,12 +306,13 @@ class KoiKoiEnv(gym.Env):
     def _cards_to_binary(self, cards):
         binary = np.zeros(self.num_cards, dtype=np.int8)
         for card in cards:
-            binary[card if isinstance(card, int) else card.card_id] = 1
+            binary[card] = 1
         return binary
 
     def _card_to_binary(self, card):
         binary = np.zeros(self.num_cards, dtype=np.int8)
-        binary[card.card_id] = 1
+        if card is not None:
+            binary[card] = 1
         return binary
     
     def _check_game_end(self):
