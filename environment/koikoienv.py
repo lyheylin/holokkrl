@@ -37,10 +37,10 @@ class KoiKoiEnv(gym.Env):
             "collected": spaces.MultiBinary(self.num_cards),
             "opponent_collected": spaces.MultiBinary(self.num_cards),
             "opponent_score": spaces.Discrete(100),
-            "opponent_round_score": spaces.Discrete(20),
+            "round_score": spaces.Discrete(20),
             "your_score": spaces.Discrete(100),
-            "your_round_score": spaces.Discrete(20),
             "turn": spaces.Discrete(2),
+            "round": spaces.Discrete(self.max_rounds),
         })
 
         self.reset()
@@ -94,14 +94,15 @@ class KoiKoiEnv(gym.Env):
             "hand": self._cards_to_binary(self.player_hands[0]),
             "field": self._cards_to_binary(self.field),
             "cards_left_in_deck": len(self.deck),
-            "last_drawn_card": self._card_to_binary(self.last_drawn_card),
+            "last_drawn_card": self._card_to_binary(self.last_drawn_card) if self.last_drawn_card else np.zeros(self.num_cards, dtype=np.int8),
             "collected": self._cards_to_binary(self.collected_cards[0]),
             "opponent_collected": self._cards_to_binary(self.collected_cards[1]),
-            "opponent_score": self.opponent_score,
             "opponent_round_score": self.opponent_round_score,
-            "your_score": self.your_score,
+            "opponent_score": self.opponent_score,
             "your_round_score": self.your_round_score,
-            "turn": self.turn
+            "your_score": self.your_score,
+            "turn": self.turn,
+            "round": self.round_count,
         }
 
     # List of keys of info to return
