@@ -6,7 +6,10 @@ from environment.card_utils import detect_yaku
 
 
 class KoiKoiEnv(gym.Env):
-    def __init__(self, opponent_type="random"):
+
+    metadata = {"render_modes": ["human"]}
+
+    def __init__(self, opponent_type="random", max_rounds=3):
         super(KoiKoiEnv, self).__init__()
         self.opponent_type = opponent_type
         
@@ -15,22 +18,9 @@ class KoiKoiEnv(gym.Env):
         self.field_size = 8
         self.deck_size = 48
         self.rng = np.random.default_rng()
-
-        # Game state
-        self.max_rounds = 3  # Or any number of rounds you want
-        self.round_count = 0
-        self.match_over = False
-
-        # Card IDs from 0 to 47
-        self.num_cards = 48
-
-        # Player state flags
-        self.koikoi_pending = False
-        self.pending_yaku = []
-        self.pending_player = None
-        self.koikoi_declared = [False, False]  # One for each player
-
-        # Action = play one card + choose match (0 = do nothing / illegal) (play hand x * match field y)
+        self.max_rounds = max_rounds
+        
+        # Action = play one card + choose match (0 = do nothing / illegal) (play hand x * match field y + no match)
         self.num_play_actions = self.max_hand_size * (self.field_size + 1)  # 8 * 9 = 72 
         self.KOIKOI_ACTION = self.num_play_actions
         self.STOP_ACTION = self.num_play_actions + 1
@@ -47,49 +37,56 @@ class KoiKoiEnv(gym.Env):
             "collected": spaces.MultiBinary(self.num_cards),
             "opponent_collected": spaces.MultiBinary(self.num_cards),
             "opponent_score": spaces.Discrete(100),
-            "round_score": spaces.Discrete(20),
+            "opponent_round_score": spaces.Discrete(20),
             "your_score": spaces.Discrete(100),
+            "your_round_score": spaces.Discrete(20),
             "turn": spaces.Discrete(2),
         })
 
         self.reset()
 
+    
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
-
-        if self.round_count >= self.max_rounds:
-            self.round_count = 0
-            self.your_score = 0
-            self.opponent_score = 0
-            self.match_over = False
-
+        # Reset multi-round match
+        self.round_count = 0
+        self.your_score = 0
+        self.opponent_score = 0
+        self.match_over = False
+        self._start_new_round()
+        return self._get_obs(), {}
+        
+    def _start_new_round(self):
         self.deck = list(range(self.num_cards))
         self.rng.shuffle(self.deck)
 
+        # Player hands and collected cards
         self.player_hands = [[], []]
         self.collected_cards = [[], []]
-
         self.player_hands[0] = [self.deck.pop(0) for _ in range(self.max_hand_size)]
         self.player_hands[1] = [self.deck.pop(0) for _ in range(self.max_hand_size)]
 
+        # Field and last drawn
         self.field = [self.deck.pop(0) for _ in range(self.field_size)]
         self.last_drawn_card = None
-        self.opponent_score = 0
-        self.your_score = 0
-        self.opponent_round_score = 0
+
+        # Round-specific scores
         self.your_round_score = 0
-        self.round_over = False
+        self.opponent_round_score = 0
+
+        # Turn and Koi-Koi state
         self.turn = 0
+        self.koikoi_pending = False
+        self.pending_yaku = []
+        self.pending_player = None
+        self.koikoi_declared = [False, False]
         self.opponent_koikoi = False
         self.player_koikoi = False
 
+        # Round control
         self.round_over = False
         self.winner = None
         self.last_yaku = []
-
-        obs = self._get_obs()
-        info = {}
-        return obs, info
 
 
     def _get_obs(self):
@@ -97,13 +94,13 @@ class KoiKoiEnv(gym.Env):
             "hand": self._cards_to_binary(self.player_hands[0]),
             "field": self._cards_to_binary(self.field),
             "cards_left_in_deck": len(self.deck),
-            "last_drawn_card": self._card_to_binary(self.last_drawn_card) if self.last_drawn_card else np.zeros(self.num_cards, dtype=np.int8),
+            "last_drawn_card": self._card_to_binary(self.last_drawn_card),
             "collected": self._cards_to_binary(self.collected_cards[0]),
             "opponent_collected": self._cards_to_binary(self.collected_cards[1]),
-            "opponent_round_score": self.opponent_round_score,
             "opponent_score": self.opponent_score,
-            "your_round_score": self.your_round_score,
+            "opponent_round_score": self.opponent_round_score,
             "your_score": self.your_score,
+            "your_round_score": self.your_round_score,
             "turn": self.turn
         }
 
@@ -241,16 +238,12 @@ class KoiKoiEnv(gym.Env):
     def _opponent_turn(self):
         hand = self.player_hands[1]
         collected = self.collected_cards[1]
-        reward = 0
         done = False
         info = {}
 
         # Opponent Match Phase
         if hand:
-            matching_cards = [
-                card for card in hand
-                if any(get_month(c) == get_month(card) for c in self.field)
-            ]
+            matching_cards = [c for c in hand if any(get_month(c) == get_month(card) for card in self.field)]
             card_to_play = self.rng.choice(matching_cards if matching_cards else hand)
             hand.remove(card_to_play)
             info["opponent_played_card"] = card_to_play
@@ -265,10 +258,8 @@ class KoiKoiEnv(gym.Env):
                 self.field.append(card_to_play)
                 info["opponent_play_match"] = None
 
-        # Opponent Draw Phase
         if self.deck:
             drawn_card = self.deck.pop(0)
-            info["opponent_drawn_card"] = drawn_card
             matches = [c for c in self.field if get_month(c) == get_month(drawn_card)]
             if matches:
                 match = self.rng.choice(matches)
@@ -278,6 +269,7 @@ class KoiKoiEnv(gym.Env):
             else:
                 self.field.append(drawn_card)
                 info["opponent_draw_match"] = None
+            info["opponent_drawn_card"] = drawn_card
 
         # Yaku Check for Opponent
         yakus, points = detect_yaku(collected)
@@ -286,26 +278,29 @@ class KoiKoiEnv(gym.Env):
             self.opponent_score += points
             self.opponent_round_score += points
             if self.opponent_koikoi:
-                # Continue playing, already declared
                 return info, False
-            elif self.rng.random() < 0.3:  # Random Koi-Koi
+            elif self.rng.random() < 0.3:
                 self.opponent_koikoi = True
                 info["opponent_koikoi"] = True
                 return info, False
             else:
-                # Opponent stops the round
                 info["opponent_koikoi"] = False
-                return info, True
+                done = True
 
-        return info, False
+        return info, done
 
+    def _check_round_end(self):
+        hands_empty = all(len(h) == 0 for h in self.player_hands)
+        deck_empty = len(self.deck) == 0
+        return hands_empty or deck_empty
 
-    def render(self, mode='human'):
+    def render(self, mode="human"):
         print(f"Hand: {self.player_hands[0]}")
         print(f"Field: {self.field}")
-        print(f"Self Collected: {self.collected_cards[0]}")
+        print(f"Collected: {self.collected_cards[0]}")
         print(f"Opponent Collected: {self.collected_cards[1]}")
         print(f"Score: You {self.your_score} - Opponent {self.opponent_score}")
+        print(f"Round: {self.round_count + 1}/{self.max_rounds}\n")
 
     def _cards_to_binary(self, cards):
         binary = np.zeros(self.num_cards, dtype=np.int8)
