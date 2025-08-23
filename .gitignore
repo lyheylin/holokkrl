@@ -201,3 +201,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Trained set
+ppo_koikoi.zip
+
+# Reference documents
+RLbook2020.pdf
