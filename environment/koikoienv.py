@@ -1,7 +1,7 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
-from environment.card_utils import get_month
+from environment.card_utils import get_card_info, get_month
 from environment.card_utils import detect_yaku
 
 
@@ -66,6 +66,8 @@ class KoiKoiEnv(gym.Env):
         self.collected_cards = [[], []]
         self.player_hands[0] = [self.deck.pop(0) for _ in range(self.max_hand_size)]
         self.player_hands[1] = [self.deck.pop(0) for _ in range(self.max_hand_size)]
+        self._player_progress = self._yaku_progress(self.collected_cards[0])
+        self._opponent_progress = self._yaku_progress(self.collected_cards[1])
 
         # Field and last drawn
         self.field = [self.deck.pop(0) for _ in range(self.field_size)]
@@ -120,6 +122,7 @@ class KoiKoiEnv(gym.Env):
         truncated = False
         info = {}
         reward = 0
+        prev_prog = self._player_progress
 
         # Handle Koi-Koi or Stop
         if self.koikoi_pending:
@@ -175,7 +178,9 @@ class KoiKoiEnv(gym.Env):
                 self.field.remove(selected_field_card)
                 collected.extend([played_card, selected_field_card])
                 info["player_field_match"] = selected_field_card
-                reward += 1 # Basic reward implementation //need update
+                new_prog = self._yaku_progress(self.collected_cards[0])
+                reward += self._progress_delta_reward(prev_prog, new_prog)
+                self._player_progress = new_prog
             else:
                 # hand.insert(hand_idx, played_card) 
                 return self._get_obs(), -1, False, False, {"error": "Illegal match attempted."}
@@ -195,6 +200,8 @@ class KoiKoiEnv(gym.Env):
                 matched_card = matching_drawn[0]
                 self.field.remove(matched_card)
                 collected.extend([drawn_card, matched_card])
+                new_prog = self._yaku_progress(self.collected_cards[0])
+                self._player_progress = new_prog
                 info["player_draw_match"] = matched_card
             else:
                 self.field.append(drawn_card)
@@ -245,6 +252,7 @@ class KoiKoiEnv(gym.Env):
         hand = self.player_hands[1]
         collected = self.collected_cards[1]
         done = False
+        prev_opp_prog = self._opponent_progress
         info = {}
 
         if not hand:
@@ -263,6 +271,8 @@ class KoiKoiEnv(gym.Env):
             match = self.rng.choice(matches)
             self.field.remove(match)
             collected.extend([card_to_play, match])
+            new_opp_prog = self._yaku_progress(self.collected_cards[1])
+            self._opponent_progress = new_opp_prog
             info["opponent_play_match"] = match
         else:
             self.field.append(card_to_play)
@@ -277,6 +287,8 @@ class KoiKoiEnv(gym.Env):
                 match = self.rng.choice(matches)
                 self.field.remove(match)
                 collected.extend([drawn_card, match])
+                new_opp_prog = self._yaku_progress(self.collected_cards[1])
+                self._opponent_progress = new_opp_prog
                 info["opponent_draw_match"] = match
             else:
                 self.field.append(drawn_card)
@@ -331,3 +343,64 @@ class KoiKoiEnv(gym.Env):
         if card is not None:
             binary[card] = 1
         return binary
+    
+    def _yaku_progress(self, collected_cards):
+        """
+        Return a dict of counts useful for Yaku shaping.
+        Keys: brights, poetry, blue, ribbon, animal, plain, ino_parts
+        """
+        prog = {
+            "brights": 0,
+            "poetry": 0,
+            "blue": 0,
+            "ribbon": 0,
+            "animal": 0,
+            "plain": 0,
+            "ino_parts": 0,  # boar/deer/butterfly pieces
+        }
+        have_boar = have_deer = have_butterfly = False
+
+        for cid in collected_cards:
+            info = get_card_info(cid)  # {id, month, month_name, type, subtype}
+            t = info["type"]
+            st = info["subtype"]
+
+            if t == "bright":
+                prog["brights"] += 1
+            elif t == "ribbon":
+                prog["ribbon"] += 1
+                if st == "poetry":
+                    prog["poetry"] += 1
+                if st == "blue":
+                    prog["blue"] += 1
+            elif t == "animal":
+                prog["animal"] += 1
+                if st == "boar":
+                    have_boar = True
+                if st == "deer":
+                    have_deer = True
+                if st == "butterfly":
+                    have_butterfly = True
+            elif t == "plain":
+                prog["plain"] += 1
+
+        prog["ino_parts"] = int(have_boar) + int(have_deer) + int(have_butterfly)
+        return prog
+
+    def _progress_delta_reward(self, before, after):
+        # small, positive-only shaping for progress
+        YAKU_SHAPING_WEIGHTS = {
+            "brights": 0.5,
+            "poetry": 0.7,
+            "blue": 0.7,
+            "ribbon": 0.2,
+            "animal": 0.2,
+            "plain": 0.1,
+            "ino_parts": 0.6,
+        }
+        reward = 0.0
+        for k, w in YAKU_SHAPING_WEIGHTS.items():
+            delta = after[k] - before[k]
+            if delta > 0:
+                reward += w * delta
+        return reward
