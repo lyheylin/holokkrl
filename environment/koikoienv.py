@@ -19,6 +19,7 @@ class KoiKoiEnv(gym.Env):
         self.num_cards = 48
         self.rng = np.random.default_rng()
         self.max_rounds = max_rounds
+        self.current_yakus = {0: set(), 1: set()}
         
         # Action = play one card + choose match (0 = do nothing / illegal) (play hand x * match field y + no match)
         self.num_play_actions = self.max_hand_size * (self.field_size + 1)  # 8 * 9 = 72 
@@ -220,6 +221,30 @@ class KoiKoiEnv(gym.Env):
                 self.pending_player = self.turn
                 info["awaiting_koikoi"] = True
                 return self._get_obs(), 0, False, False, info
+            
+            yakus_set = set(y[0] for y in yakus) if isinstance(yakus[0], tuple) else set(yakus)
+
+        # Different parameters --
+        # progress_delta_reward: small stepwise nudges toward yaku formation.
+        # ongoing_reward: holding yakus generates constant positive reinforcement.
+        # formation_bonus: one-time bonus when new yaku appears.
+        # points: official game score when yakus are scored.
+
+        # Continuous reward for holding yakus
+        ongoing_reward = sum(self.YAKU_REWARDS.get(y, 0) for y in yakus_set)
+
+        # Bonus for newly formed yakus
+        new_yakus = yakus_set - self.current_yakus[0]
+        formation_bonus = sum(self.YAKU_FORMATION_BONUS.get(y, 0) for y in new_yakus)
+
+        reward += ongoing_reward + formation_bonus
+
+        # Update tracking
+        self.current_yakus[0] = yakus_set
+
+        info["ongoing_yaku_reward"] = ongoing_reward
+        info["formation_bonus"] = formation_bonus
+        info["new_yakus"] = list(new_yakus)
 
         # Opponent Turn
         self.turn = 1
@@ -404,3 +429,29 @@ class KoiKoiEnv(gym.Env):
             if delta > 0:
                 reward += w * delta
         return reward
+    
+    YAKU_REWARDS = {
+    "kasu": 1,
+    "tane": 3,
+    "tan": 3,
+    "sankou": 6,
+    "shikou": 8,
+    "gokou": 12,
+    "inoshikachou": 5,
+    "akatan": 4,
+    "aotan": 4,
+    "akaaotan": 8,
+    }
+
+    YAKU_FORMATION_BONUS = {
+        "kasu": 2,
+        "tane": 5,
+        "tan": 5,
+        "sankou": 8,
+        "shikou": 12,
+        "gokou": 20,
+        "inoshikachou": 8,
+        "akatan": 6,
+        "aotan": 6,
+        "akaaotan": 12,
+    }
