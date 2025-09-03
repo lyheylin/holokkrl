@@ -251,6 +251,19 @@ class KoiKoiEnv(gym.Env):
         opponent_info, opponent_round_end = self._opponent_turn()
         info.update(opponent_info)
 
+        # Blocking Penalty: if opponent reduced our potential progress
+        before_prog = self._player_progress
+        after_prog = self._yaku_progress(self.collected_cards[0])
+
+        blocking_penalty = 0
+        for k, penalty in self.YAKU_BLOCKING_PENALTIES.items():
+            if after_prog[k] < before_prog[k]:
+                blocking_penalty += penalty * (before_prog[k] - after_prog[k])
+
+        reward += blocking_penalty
+        info["blocking_penalty"] = blocking_penalty
+        # ---
+
         self.round_over = self._check_round_end() or self.round_over or opponent_round_end
         if self.round_over:
             self.round_count += 1
@@ -431,16 +444,16 @@ class KoiKoiEnv(gym.Env):
         return reward
     
     YAKU_REWARDS = {
-    "kasu": 1,
-    "tane": 3,
-    "tan": 3,
-    "sankou": 6,
-    "shikou": 8,
-    "gokou": 12,
-    "inoshikachou": 5,
-    "akatan": 4,
-    "aotan": 4,
-    "akaaotan": 8,
+        "kasu": 1,
+        "tane": 3,
+        "tan": 3,
+        "sankou": 6,
+        "shikou": 8,
+        "gokou": 12,
+        "inoshikachou": 5,
+        "akatan": 4,
+        "aotan": 4,
+        "akaaotan": 8,
     }
 
     YAKU_FORMATION_BONUS = {
@@ -454,4 +467,14 @@ class KoiKoiEnv(gym.Env):
         "akatan": 6,
         "aotan": 6,
         "akaaotan": 12,
+    }
+
+    YAKU_BLOCKING_PENALTIES = {
+        "brights": -0.4,
+        "poetry": -0.5,
+        "blue": -0.5,
+        "ribbon": -0.1,
+        "animal": -0.2,
+        "plain": -0.05,
+        "ino_parts": -0.6,
     }
