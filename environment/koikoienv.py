@@ -210,6 +210,7 @@ class KoiKoiEnv(gym.Env):
 
         # Yaku Check for Player
         yakus, points = detect_yaku(collected)
+        yakus_set = set() 
         if yakus:
             self.pending_yaku = yakus
             self.your_score += points
