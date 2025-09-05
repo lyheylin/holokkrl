@@ -69,6 +69,7 @@ class KoiKoiEnv(gym.Env):
         self.player_hands[1] = [self.deck.pop(0) for _ in range(self.max_hand_size)]
         self._player_progress = self._yaku_progress(self.collected_cards[0])
         self._opponent_progress = self._yaku_progress(self.collected_cards[1])
+        self.current_yakus = {0: set(), 1: set()}
 
         # Field and last drawn
         self.field = [self.deck.pop(0) for _ in range(self.field_size)]
@@ -217,13 +218,23 @@ class KoiKoiEnv(gym.Env):
             self.your_round_score += points
             reward += points
             info["yaku"] = yakus
+
+            # form a normalized set of yaku names
+            yakus_set = set(y[0] for y in yakus) if isinstance(yakus[0], tuple) else set(yakus)
+
             if not self.koikoi_declared[self.turn]:
                 self.koikoi_pending = True
                 self.pending_player = self.turn
                 info["awaiting_koikoi"] = True
                 return self._get_obs(), 0, False, False, info
-            
-            yakus_set = set(y[0] for y in yakus) if isinstance(yakus[0], tuple) else set(yakus)
+
+        # ongoing (small) + formation (big) rewards
+        ongoing_reward = sum(self.YAKU_REWARDS.get(y, 0) for y in yakus_set)
+        new_yakus = yakus_set - self.current_yakus[0]
+        formation_bonus = sum(self.YAKU_FORMATION_BONUS.get(y, 0) for y in new_yakus)
+
+        reward += ongoing_reward + formation_bonus
+        self.current_yakus[0] = self.current_yakus[0] | yakus_set  # accumulate
 
         # Different parameters --
         # progress_delta_reward: small stepwise nudges toward yaku formation.
@@ -231,21 +242,11 @@ class KoiKoiEnv(gym.Env):
         # formation_bonus: one-time bonus when new yaku appears.
         # points: official game score when yakus are scored.
 
-        # Continuous reward for holding yakus
-        ongoing_reward = sum(self.YAKU_REWARDS.get(y, 0) for y in yakus_set)
-
-        # Bonus for newly formed yakus
-        new_yakus = yakus_set - self.current_yakus[0]
-        formation_bonus = sum(self.YAKU_FORMATION_BONUS.get(y, 0) for y in new_yakus)
-
-        reward += ongoing_reward + formation_bonus
-
-        # Update tracking
-        self.current_yakus[0] = yakus_set
-
         info["ongoing_yaku_reward"] = ongoing_reward
         info["formation_bonus"] = formation_bonus
         info["new_yakus"] = list(new_yakus)
+
+
 
         # Opponent Turn
         self.turn = 1
@@ -254,24 +255,40 @@ class KoiKoiEnv(gym.Env):
 
         # Blocking Penalty: if opponent reduced our potential progress
         before_prog = self._player_progress
-        after_prog = self._yaku_progress(self.collected_cards[0])
+        after_prog  = self._yaku_progress(self.collected_cards[0])
 
-        blocking_penalty = 0
+        blocking_penalty = 0.0
         for k, penalty in self.YAKU_BLOCKING_PENALTIES.items():
-            if after_prog[k] < before_prog[k]:
-                blocking_penalty += penalty * (before_prog[k] - after_prog[k])
+            delta = after_prog[k] - before_prog[k]
+            if delta < 0:
+                blocking_penalty += penalty * (-delta)
 
+        # cap per step
+        blocking_penalty = min(blocking_penalty, self.BLOCKING_PENALTY_CAP)
         reward += blocking_penalty
         info["blocking_penalty"] = blocking_penalty
+
+        # update stored progress after accounting for opponent changes
+        self._player_progress = after_prog
         # ---
 
         self.round_over = self._check_round_end() or self.round_over or opponent_round_end
         if self.round_over:
+            # outcome bonus based on round score differential
+            diff = self.your_round_score - self.opponent_round_score
+            if diff > 0:
+                outcome_bonus = 12  # won the round
+            elif diff < 0:
+                outcome_bonus = -8  # lost the round
+            else:
+                outcome_bonus = 0   # draw
+            reward += outcome_bonus
+            info["outcome_bonus"] = outcome_bonus
+
             self.round_count += 1
             if self.round_count >= self.max_rounds:
-                terminated = True  # Gym expects episode over
+                terminated = True
             else:
-                # Automatically start new round
                 self._start_new_round()
 
         self.turn = 0  # back to player
@@ -352,8 +369,8 @@ class KoiKoiEnv(gym.Env):
                 info["opponent_koikoi"] = True
 
         # --- Round End if Hand Empty ---
-        if not hand:
-            done = True
+        if not hand or not self.deck:
+            done = True 
 
         return info, done
 
@@ -429,13 +446,13 @@ class KoiKoiEnv(gym.Env):
     def _progress_delta_reward(self, before, after):
         # small, positive-only shaping for progress
         YAKU_SHAPING_WEIGHTS = {
-            "brights": 0.5,
-            "poetry": 0.7,
-            "blue": 0.7,
-            "ribbon": 0.2,
-            "animal": 0.2,
-            "plain": 0.1,
-            "ino_parts": 0.6,
+            "brights": 0.8,   # was 0.5
+            "poetry":  1.0,   # was 0.7
+            "blue":    1.0,   # was 0.7
+            "ribbon":  0.3,   # was 0.2
+            "animal":  0.35,  # was 0.2
+            "plain":   0.12,  # was 0.1
+            "ino_parts": 1.1, # was 0.6
         }
         reward = 0.0
         for k, w in YAKU_SHAPING_WEIGHTS.items():
@@ -445,37 +462,38 @@ class KoiKoiEnv(gym.Env):
         return reward
     
     YAKU_REWARDS = {
-        "kasu": 1,
-        "tane": 3,
-        "tan": 3,
-        "sankou": 6,
-        "shikou": 8,
-        "gokou": 12,
-        "inoshikachou": 5,
-        "akatan": 4,
-        "aotan": 4,
-        "akaaotan": 8,
+        "kasu": 0.5,
+        "tane": 1.0,
+        "tan":  1.0,
+        "sankou": 1.5,
+        "shikou": 2.0,
+        "gokou":  3.0,
+        "inoshikachou": 1.5,
+        "akatan": 1.0,
+        "aotan":  1.0,
+        "akaaotan": 2.0,
     }
 
     YAKU_FORMATION_BONUS = {
-        "kasu": 2,
-        "tane": 5,
-        "tan": 5,
-        "sankou": 8,
-        "shikou": 12,
-        "gokou": 20,
-        "inoshikachou": 8,
-        "akatan": 6,
-        "aotan": 6,
-        "akaaotan": 12,
+        "kasu": 4,          # was 2
+        "tane": 8,          # was 5
+        "tan":  8,          # was 5
+        "sankou": 12,       # was 8
+        "shikou": 18,       # was 12
+        "gokou":  30,       # was 20
+        "inoshikachou": 12, # was 8
+        "akatan": 10,       # was 6
+        "aotan":  10,       # was 6
+        "akaaotan": 18,     # was 12
     }
 
     YAKU_BLOCKING_PENALTIES = {
-        "brights": -0.4,
-        "poetry": -0.5,
-        "blue": -0.5,
-        "ribbon": -0.1,
-        "animal": -0.2,
-        "plain": -0.05,
-        "ino_parts": -0.6,
+        "brights":   -0.8,
+        "poetry":    -1.0,
+        "blue":      -1.0,
+        "ribbon":    -0.3,
+        "animal":    -0.4,
+        "plain":     -0.1,
+        "ino_parts": -1.1,
     }
+    BLOCKING_PENALTY_CAP = -2.0  # per step floor
