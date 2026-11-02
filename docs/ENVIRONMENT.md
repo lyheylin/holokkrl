@@ -4,6 +4,8 @@ This page describes `KoiKoiEnv` in `holokkrl/envs/koikoi_env.py`, a [Gymnasium](
 
 ## Overview
 
+Create it with `KoiKoiEnv(max_rounds=3, rules=RuleConfig())`. `RuleConfig` in `holokkrl/game/rules.py` holds the [rule flags](RULES.md#9-rule-flags).
+
 - The agent is always player 0. The opponent is built into the environment and plays inside `step()`.
 - One episode is one match of `max_rounds` rounds.
 - Each `step()` handles one agent decision, so a turn can take up to three steps: play, draw choice and Koi-Koi decision.
@@ -14,8 +16,8 @@ This page describes `KoiKoiEnv` in `holokkrl/envs/koikoi_env.py`, a [Gymnasium](
 
 | Actions | Meaning | Legal when |
 |---|---|---|
-| 0–143 | Play a hand slot onto a field slot: `env.encode_play(hand_idx, field_idx)`, which equals `hand_idx * 18 + field_idx` | Playing, and the card and slot satisfy R4.3 |
-| Field slot 17 (`env.NO_MATCH`) | Play the card with no capture | The card has no match on the field |
+| 0–143 | Play a hand slot onto a field slot: `env.encode_play(hand_idx, field_idx)`, which equals `hand_idx * 18 + field_idx` | Playing, and the card and slot satisfy R4.3 and any rule flags |
+| Field slot 17 (`env.NO_MATCH`) | Play the card with no capture | The card has no match on the field. With `must_capture_if_able`, no card in your hand can have one either |
 | 144 (`KOIKOI_ACTION`) | Declare Koi-Koi | At a Koi-Koi decision |
 | 145 (`STOP_ACTION`) | Stop and score | At a Koi-Koi decision |
 | 146 (`DRAW_MATCH_FIRST`) | Capture the lower card ID of the two matches | At a draw choice |
@@ -73,6 +75,15 @@ Rewards are training signals and not part of the rules. They are defined in `hol
 A card can count in more than one category. For example, a poetry ribbon counts as both Poetry and Ribbon.
 
 **Shaped reward is not a measure of skill.** It doesn't track game points, so report points per round and win rate. See [ROADMAP.md](ROADMAP.md).
+
+## Saving and loading models
+
+Use `save_model(model, path)` and `load_model(path, env)` from `holokkrl/models.py`, not `model.save()` or `PPO.load()`.
+
+- `save_model` records the training environment's rule flags and ruleset version inside the model file.
+- `load_model` raises `RulesMismatchError` unless they exactly match `env`, or if the file has no recorded rules.
+
+Rule flags don't change the action or observation spaces, so `PPO.load()` alone would accept a model running under the wrong rules. Calling it directly skips this protection.
 
 ## Episode behaviour
 

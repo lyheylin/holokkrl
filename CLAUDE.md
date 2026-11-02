@@ -17,6 +17,8 @@ The virtualenv is at `~/.venvs/holokkrl`, because `/mnt/e` doesn't allow symlink
 
 ## Conventions
 
+- Save and load models only through `holokkrl/models.py`, so a model can't run under rules it wasn't trained on (R9.2). Never call `model.save()` or `PPO.load()` directly.
+- Add rule variations as flags in `holokkrl/game/rules.py`, documented in section 9 of `docs/RULES.md`. Raise `RULESET_VERSION` and the title of `docs/RULES.md` when gameplay changes.
 - Judge agents by game points per round and match win rate, never by shaped reward.
 - `scripts/train_ppo.py` overwrites `models/ppo_koikoi.zip` by default. Pass `--output` when experimenting.
 - Package code goes in `holokkrl/`, runnable entry points in `scripts/`. `models/` and `references/` are local and not in git.

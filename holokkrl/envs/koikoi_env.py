@@ -8,6 +8,7 @@ import numpy as np
 
 from holokkrl.envs import rewards
 from holokkrl.game.cards import NUM_CARDS, get_month
+from holokkrl.game.rules import RuleConfig
 from holokkrl.game.yaku import detect_yaku
 
 
@@ -24,8 +25,9 @@ class KoiKoiEnv(gym.Env):
     # would otherwise repeat it forever.
     MAX_CONSECUTIVE_ILLEGAL = 100
 
-    def __init__(self, max_rounds=3):
+    def __init__(self, max_rounds=3, rules=None):
         super().__init__()
+        self.rules = RuleConfig() if rules is None else rules
 
         # -- Action and Observation Setup --
         self.max_hand_size = 8
@@ -132,11 +134,11 @@ class KoiKoiEnv(gym.Env):
         elif phase == self.PHASE_DRAW_MATCH:
             mask[[self.DRAW_MATCH_FIRST, self.DRAW_MATCH_SECOND]] = True
         else:
-            for hand_idx, card in enumerate(self.player_hands[0]):
-                month = get_month(card)
-                slots = [i for i, c in enumerate(self.field) if get_month(c) == month]
+            hand_slots = [self._field_slots(card) for card in self.player_hands[0]]
+            must_capture = self.rules.must_capture_if_able and any(hand_slots)
+            for hand_idx, slots in enumerate(hand_slots):
                 # A card that can match must match (R4.3).
-                for slot in slots or [self.NO_MATCH]:
+                for slot in slots or ([] if must_capture else [self.NO_MATCH]):  # R9.1
                     mask[self.encode_play(hand_idx, slot)] = True
         return mask
 
@@ -343,6 +345,7 @@ class KoiKoiEnv(gym.Env):
             return info, done
 
         # --- Opponent Match Phase ---
+        # Always plays a capturing card if it can, which is legal under every rule flag.
         matching_cards = [c for c in hand if self._field_matches(c)]
         card_to_play = int(self.np_random.choice(matching_cards if matching_cards else hand))
         hand.remove(card_to_play)
@@ -391,6 +394,10 @@ class KoiKoiEnv(gym.Env):
         return info, done
 
     # --- Shared helpers ---
+
+    def _field_slots(self, card):
+        month = get_month(card)
+        return [i for i, c in enumerate(self.field) if get_month(c) == month]
 
     def _field_matches(self, card):
         month = get_month(card)

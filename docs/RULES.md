@@ -1,8 +1,8 @@
-# Koi-Koi Rules (Project Ruleset v1)
+# Koi-Koi Rules (Project Ruleset v1.1)
 
 **This file is the source of truth for the game rules in this project.** If the code and this file disagree, treat it as a bug and fix the code, or change this file on purpose and record it in the [changelog](#changelog). Don't settle a rules question from memory or another website.
 
-Koi-Koi has no single official rulebook, and sources disagree on many details. This ruleset describes what the engine implements today. It uses a common yaku table with no score multipliers and no instant wins. Section 8 lists every place where other sources differ, so that dropping a rule is a recorded decision.
+Koi-Koi has no single official rulebook, and sources disagree on many details. This ruleset describes what the engine implements today. It uses a common yaku table with no score multipliers and no instant wins. Section 8 lists every place where other sources differ, so that dropping a rule is a recorded decision. Section 9 lists the rules you can switch with a flag.
 
 Rule IDs such as `R4.2` are stable. Use them in code comments, tests and discussion.
 
@@ -49,7 +49,7 @@ Rule IDs such as `R4.2` are stable. Use them in code comments, tests and discuss
 
 **R4.2** A turn has two steps, in this order:
 
-1. **Play:** play any one card from your hand and resolve it under R4.3.
+1. **Play:** play any one card from your hand and resolve it under R4.3. Flag R9.1 can restrict which cards you may play.
 2. **Draw:** turn over the top card of the draw pile and resolve it under R4.3.
 
 **R4.3** A played or drawn card resolves by how many field cards share its month:
@@ -117,7 +117,7 @@ Rule IDs such as `R4.2` are stable. Use them in code comments, tests and discuss
 
 | ID | Project ruling | What the sources say |
 |---|---|---|
-| D1 | A card you play can be any card in your hand, even if a different card could capture (R4.2). | **Unresolved.** Japanese Wikipedia doesn't address it. English Wikipedia and Board Game Arena can be read as requiring a capture whenever any hand card can make one. Check this first if the engine is compared against another implementation. |
+| D1 | By default, a card you play can be any card in your hand, even if a different card could capture (R4.2). The other reading is available as flag R9.1. | Japanese Wikipedia doesn't address it. English Wikipedia and Board Game Arena can be read as requiring a capture whenever any hand card can make one. Set the flag to match the game you're playing on. |
 | D2 | Sankou excludes the rain man (R5.2). | English and Japanese Wikipedia exclude it. RulesPal's table lists it among the eligible cards. |
 | D3 | Akatan, Aotan and Inoshikachou have no +1 for extra cards (R5.2). | Wikipedia lists no bonus. RulesPal adds +1 per extra card. |
 | D4 | Koi-Koi can be declared repeatedly (R6.4). | Wikipedia notes both one call per hand and one per yaku-forming turn. |
@@ -139,6 +139,20 @@ Most sources treat the first three rows as standard, so **they matter if the goa
 | Point value tables | Higher values such as Gokou 15. | Japanese Wikipedia lists these as alternatives. |
 | Dealer's privilege | The dealer scores on a drawn round. | See D6. |
 
+## 9. Rule flags
+
+Flags switch between versions of a rule, because the games a model plays on may differ. Each flag has a default, and with every flag at its default the game follows the rules above.
+
+| ID | Flag | Default | When on |
+|---|---|---|---|
+| R9.1 | `must_capture_if_able` | Off | If any card in your hand can capture, you must play one of those cards. You may discard only when none of them can. |
+
+**R9.2** A model may only run on an engine with exactly the same flags and ruleset version it was trained under. Loading it under anything else is refused. A model with no recorded rules is also refused.
+
+**R9.3** A flag applies to both players for a whole match and can't change during it. Changing a flag or the ruleset version means training a new model.
+
+**R9.4** The ruleset version in this file's title must match `RULESET_VERSION` in `holokkrl/game/rules.py`. Raise it whenever gameplay changes. Changes that only reword this file don't need a new version.
+
 ## Sources
 
 Accessed 2026-11-02. These were read through automated page extraction, so check the original before relying on a fine detail.
@@ -152,4 +166,5 @@ Accessed 2026-11-02. These were read through automated page extraction, so check
 
 ## Changelog
 
+- **v1.1 (2026-11-02):** Added rule flags (section 9) and `must_capture_if_able` for ruling D1. Default gameplay is unchanged.
 - **v1 (2026-11-02):** First version, documenting the engine at commit `d054d12`.

@@ -8,6 +8,8 @@ import gymnasium as gym
 from stable_baselines3 import PPO
 
 import holokkrl.envs  # noqa: F401  (registers KoiKoi-v0)
+from holokkrl.game.rules import RuleConfig
+from holokkrl.models import save_model
 
 DEFAULT_OUTPUT = Path(__file__).resolve().parents[1] / "models" / "ppo_koikoi"
 
@@ -17,15 +19,16 @@ def main():
     parser.add_argument("--timesteps", type=int, default=10000, help="Training timesteps")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT,
                         help="Where to save the model (replaces any existing file; .zip is added)")
+    parser.add_argument("--must-capture", action="store_true",
+                        help="Train with the must_capture_if_able rule (docs/RULES.md section 9)")
     args = parser.parse_args()
 
-    env = gym.make("KoiKoi-v0", max_rounds=3)
+    env = gym.make("KoiKoi-v0", max_rounds=3, rules=RuleConfig(must_capture_if_able=args.must_capture))
 
     model = PPO("MultiInputPolicy", env, verbose=1)
     model.learn(total_timesteps=args.timesteps)
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    model.save(args.output)
+    print(f"Saved {save_model(model, args.output)}")
 
     # Test the trained agent
     obs, info = env.reset()
