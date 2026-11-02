@@ -40,6 +40,9 @@ python -m scripts.random_match
 
 # Run the placeholder PPO training (see --help for options)
 python -m scripts.train_ppo
+
+# Run a saved model
+python -m scripts.run_model models/ppo_koikoi.zip
 ```
 
 To use the environment in code:
@@ -63,6 +66,20 @@ print(f"You {env.your_score} - Opponent {env.opponent_score}")
 
 `scripts.train_ppo` saves to `models/ppo_koikoi.zip` by default, replacing any file already there, and `--output` picks another path. A `ppo_koikoi.zip` from before the engine fixes won't load.
 
+## Rule flags
+
+Koi-Koi rules vary, so some can be switched to match the game you're playing on. For example, `--must-capture` requires playing a capturing card whenever you hold one. It works with all the scripts, and `KoiKoiEnv(rules=RuleConfig(...))` sets it in code. [docs/RULES.md](docs/RULES.md#9-rule-flags) lists the flags.
+
+**A model only runs under the exact rules it was trained on.** `scripts.run_model` and `load_model` refuse a model if the flags don't match:
+
+```bash
+python -m scripts.train_ppo --must-capture    # Trained with the flag on
+python -m scripts.run_model models/ppo_koikoi.zip --must-capture    # Runs
+python -m scripts.run_model models/ppo_koikoi.zip    # Refused
+```
+
+Rule-flag checks only apply if you use `save_model` and `load_model` from `holokkrl/models.py`, so don't call `model.save()` or `PPO.load()` directly.
+
 ## Project layout
 
 ```
@@ -70,16 +87,20 @@ holokkrl/              The Python package
   game/
     cards.py           The 48-card deck and card lookups
     yaku.py            Yaku detection
+    rules.py           Rule flags
   envs/
     koikoi_env.py      KoiKoiEnv: game flow and built-in opponent
     rewards.py         Reward tables and calculations
+  models.py            Saving and loading models with their rules
 scripts/               Things you run
   play.py              Play in the terminal
   random_match.py      Random-move smoke test
   train_ppo.py         Placeholder PPO training
+  run_model.py         Run a saved model
 tests/
   test_cards_yaku.py   Deck and yaku tests
   test_koikoi_env.py   Rules, reward and invariant tests
+  test_rule_flags.py   Rule flags and model rule checks
 docs/                  Rules, environment reference and roadmap
 models/                Trained models (not in git)
 references/            Local reference material (not in git)

@@ -6,6 +6,7 @@ import logging
 
 from holokkrl.envs.koikoi_env import KoiKoiEnv
 from holokkrl.game.cards import format_card, format_hand
+from holokkrl.game.rules import RuleConfig
 
 
 def configure_logging(enable_logging):
@@ -97,9 +98,9 @@ def read_action(env):
     return env.encode_play(hand_idx, field_idx)
 
 
-def play_game(enable_logging):
+def play_game(enable_logging, rules=None):
     configure_logging(enable_logging)
-    env = KoiKoiEnv()
+    env = KoiKoiEnv(rules=rules)
     obs, info = env.reset()
     terminated = False
     truncated = False
@@ -131,5 +132,7 @@ def play_game(enable_logging):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Play Koi-Koi in the terminal")
     parser.add_argument("--log", action="store_true", help="Enable logging to file")
+    parser.add_argument("--must-capture", action="store_true",
+                        help="Play with the must_capture_if_able rule (docs/RULES.md section 9)")
     args = parser.parse_args()
-    play_game(enable_logging=args.log)
+    play_game(enable_logging=args.log, rules=RuleConfig(must_capture_if_able=args.must_capture))

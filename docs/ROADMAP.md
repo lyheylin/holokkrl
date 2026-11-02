@@ -11,7 +11,7 @@
 
 ### Baselines
 
-Measured on 2026-11-02 at commit `d054d12`, with a one-off script not kept in the repo, over 1,500 12-round matches against the built-in opponent:
+Measured on 2026-11-02 at commit `d054d12`, with default rule flags, using a one-off script not kept in the repo, over 1,500 12-round matches against the built-in opponent:
 
 | Policy | Match win rate | Round win rate | Points per round (95% CI) | Shaped return per match |
 |---|---|---|---|---|
@@ -31,6 +31,7 @@ Two conclusions shape this plan:
 - **Points per round and match win rate are the only measures of skill.** Shaped return is never used to compare agents.
 - **Every result comes from the shared evaluation tool**, with confidence intervals, and with both seats played equally when the agent and opponent can swap.
 - **Rules questions go to [RULES.md](RULES.md).** A rules change needs an updated ruleset, updated tests and new baselines, and makes earlier models obsolete.
+- **A model only runs under the rules it was trained on** ([R9.2](RULES.md#9-rule-flags)). To play a game with different rules, train a separate model. Baselines and results must state their rule flags.
 - **Each phase has exit criteria.** If a phase's method doesn't beat what came before it, drop that method and record why.
 
 ## Phase 0: Foundations
@@ -39,7 +40,6 @@ Two conclusions shape this plan:
 
 - Merge the documentation and project structure into `master`. The engine fixes are already merged.
 - **Decide the target ruleset**, and whether to add the common rules v1 leaves out ([RULES.md section 8](RULES.md#common-rules-this-ruleset-leaves-out)). Multipliers especially change when Koi-Koi is worth declaring, so a model trained without them will misjudge that decision under common rules.
-- Resolve ruling D1 (whether you may discard while another hand card can capture).
 
 **Exit:** the documentation and structure are on `master`, and the target ruleset is written in RULES.md and implemented, with tests.
 
@@ -51,7 +51,7 @@ Two conclusions shape this plan:
 - Make the wrapper take any opponent policy.
 - Make observations seat-relative and able to include public facts that are missing today: who dealt, whether the opponent has declared Koi-Koi, and the opponent's hand size.
 - Consider replacing the 148 slot-based actions with card-based actions, such as "play card 12", so that an action means the same thing in every state.
-- Move ruleset options and rewards into configuration.
+- Make rewards configurable, as rule flags already are.
 
 **Exit:** the existing rules tests pass against the core, seeded games match the current engine for the same choices (apart from any rule changes made on purpose), and a scripted policy can play either seat.
 
@@ -65,7 +65,7 @@ Two conclusions shape this plan:
   - Random.
   - Greedy, from the table above.
   - **Expert**: a hand-written strategy that tracks unseen cards, pursues and blocks yaku, and decides Koi-Koi by risk. It's the main benchmark before self-play.
-- Add model and results logging, with the rules version recorded for each run.
+- Add results logging, with the rule flags and ruleset version recorded for each run.
 
 **Exit:** the arena reproduces the baselines within their confidence intervals, and Expert beats Greedy with a confidence interval above zero.
 
@@ -126,7 +126,7 @@ The goal is strong, robust play, not provably optimal play. Point 3 is the real 
 
 | Risk | Mitigation |
 |---|---|
-| Changing rules after training makes models obsolete | Decide the ruleset in Phase 0 and record the rules version with each model |
+| Changing rules after training makes models obsolete | Decide the ruleset in Phase 0. Each model records its rules and is refused under any others |
 | Reward shaping teaches the wrong behaviour | Compare agents only on game results, and reduce shaping over training |
 | Overfitting to the built-in opponent | Train against a mix of bots, then a league, and measure with exploiters |
 | Comparing agents on too few games | Use the shared arena, with confidence intervals, for every comparison |
