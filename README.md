@@ -24,8 +24,6 @@ uv pip install --python ~/.venvs/holokkrl -r requirements.txt --index-strategy u
 source ~/.venvs/holokkrl/bin/activate
 ```
 
-The virtualenv lives outside the repo because the Windows drive mount under WSL (`/mnt/e`) doesn't allow the symlinks it needs.
-
 ## Usage
 
 Run these from the repository root:
