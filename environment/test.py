@@ -16,8 +16,8 @@ truncated = False
 step_count = 0
 
 while not done and not truncated:
-    # Sample random action
-    action = env.action_space.sample()
+    # Sample random legal action
+    action = env.action_space.sample(mask=env.unwrapped.action_masks().astype(np.int8))
     
     obs, reward, done, truncated, info = env.step(action)
     step_count += 1

@@ -45,31 +45,38 @@ def print_game_state(env):
     print(state_str)
     logging.info("GAME STATE:\n%s", state_str)
 
-def print_turn_info(info):
-    logging.info("TURN INFO: %s", info)
-    print("\n--- Turn Summary ---")
-
-    if "player_drawn_card" in info:
-        print(f"You drew: {display_card(info['player_drawn_card'])}")
-        if "player_draw_match" in info:
-            match = info["player_draw_match"]
-            print(f"Matched with: {display_card(match)}" if match is not None else "No match from draw.")
-
+def print_opponent_turn(info):
     if "opponent_played_card" in info:
         print(f"Opponent played: {display_card(info['opponent_played_card'])}")
     if "opponent_play_match" in info:
         match = info["opponent_play_match"]
         print(f"Matched with: {display_card(match)}" if match is not None else "No match for played card.")
-    
+
     if "opponent_drawn_card" in info:
         print(f"Opponent drew: {display_card(info['opponent_drawn_card'])}")
     if "opponent_draw_match" in info:
         match = info["opponent_draw_match"]
         print(f"Matched with: {display_card(match)}" if match is not None else "No match from draw.")
 
-    if "opponent_yaku" in info and info["opponent_yaku"]:
+    if "opponent_koikoi" in info:
         print(f"Opponent formed Yaku: {info['opponent_yaku']}")
-        print(f"Opponent chose to: {'Koi-Koi' if info.get('opponent_koikoi') else 'Stop and score'}")
+        print(f"Opponent chose to: {'Koi-Koi' if info['opponent_koikoi'] else 'Stop and score'}")
+
+def print_turn_info(info):
+    logging.info("TURN INFO: %s", info)
+    print("\n--- Turn Summary ---")
+
+    if "player_drawn_card" in info:
+        print(f"You drew: {display_card(info['player_drawn_card'])}")
+    if "player_draw_match" in info:
+        match = info["player_draw_match"]
+        print(f"Matched with: {display_card(match)}" if match is not None else "No match from draw.")
+
+    print_opponent_turn(info)
+
+    if "opening_opponent_turn" in info:
+        print("New round: the opponent deals and plays first.")
+        print_opponent_turn(info["opening_opponent_turn"])
     print("-------------------------------")
 
 def test_game(enable_logging):
@@ -81,6 +88,8 @@ def test_game(enable_logging):
 
     logging.info("GAME START")
     print("Welcome to the Koi-Koi test harness!\n")
+    if "opening_opponent_turn" in info:
+        print_turn_info(info)
 
     while not (terminated or truncated):
         print_game_state(env)
@@ -90,6 +99,12 @@ def test_game(enable_logging):
             print(f"{env.KOIKOI_ACTION}: Koi-Koi")
             print(f"{env.STOP_ACTION}: Stop and score")
             action = int(input("Enter action (Koi-Koi/Stop): "))
+        elif env.pending_draw_card is not None:
+            first, second = env._field_matches(env.pending_draw_card)
+            print(f"You drew {format_card(env.pending_draw_card)}, which matches two field cards. Choose:")
+            print(f"{env.DRAW_MATCH_FIRST}: {format_card(first)}")
+            print(f"{env.DRAW_MATCH_SECOND}: {format_card(second)}")
+            action = int(input("Enter action (capture): "))
         else:
             print("Choose a card to play and field match index:")
             for i, card in enumerate(env.player_hands[0]):
@@ -98,9 +113,9 @@ def test_game(enable_logging):
             print("Matching with:")
             for i, card in enumerate(env.field):
                 print(f"{i}: {format_card(card)}")
-            print(f"{len(env.field)}: No match")
+            print(f"{env.NO_MATCH}: No match")
             field_idx = int(input("Field index to match (or No Match): "))
-            action = hand_idx * (env.field_size + 1) + field_idx
+            action = env.encode_play(hand_idx, field_idx)
 
         obs, reward, terminated, truncated, info = env.step(action)
 

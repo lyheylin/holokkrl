@@ -72,7 +72,7 @@ def detect_yaku(collected):
             yaku.append(("Ame-Shikou", 7))  # Includes Rainman
         else:
             yaku.append(("Shikou", 8))
-    elif len(bright) == 3:
+    elif len(bright) == 3 and not bright & rainman:  # Rainman does not count toward Sankou
         yaku.append(("Sankou", 5))
 
     if has_all(SUBTYPE_MAP.get("boar", set()) |
