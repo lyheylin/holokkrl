@@ -7,11 +7,11 @@
 ## Where the project stands
 
 - **Done:** a rules-tested game engine, a Gymnasium environment and a terminal harness.
-- **Not useful yet:** the PPO script. It doesn't use action masking, and its one test run after the engine fixes made illegal moves until the match was cut off. The saved `ppo_koikoi.zip` predates those fixes and no longer loads.
+- **Not useful yet:** the PPO script. It doesn't use action masking, and its one test run after the engine fixes made illegal moves until the match was cut off. The saved `models/ppo_koikoi.zip` predates those fixes and no longer loads.
 
 ### Baselines
 
-Measured on 2026-11-02 at commit `d054d12`, with a one-off script, over 1,500 12-round matches against the built-in opponent:
+Measured on 2026-11-02 at commit `d054d12`, with a one-off script not kept in the repo, over 1,500 12-round matches against the built-in opponent:
 
 | Policy | Match win rate | Round win rate | Points per round (95% CI) | Shaped return per match |
 |---|---|---|---|---|
@@ -37,12 +37,11 @@ Two conclusions shape this plan:
 
 **Goal:** a clean, documented starting point.
 
-- Merge `fix/engine-rules-and-rewards` into `master`.
-- Commit the documentation.
+- Merge the documentation and project structure into `master`. The engine fixes are already merged.
 - **Decide the target ruleset**, and whether to add the common rules v1 leaves out ([RULES.md section 8](RULES.md#common-rules-this-ruleset-leaves-out)). Multipliers especially change when Koi-Koi is worth declaring, so a model trained without them will misjudge that decision under common rules.
 - Resolve ruling D1 (whether you may discard while another hand card can capture).
 
-**Exit:** the fixes are on `master`, and the target ruleset is written in RULES.md and implemented, with tests.
+**Exit:** the documentation and structure are on `master`, and the target ruleset is written in RULES.md and implemented, with tests.
 
 ## Phase 1: Two-player engine
 

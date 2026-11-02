@@ -1,6 +1,6 @@
 # Environment Reference
 
-This page describes `KoiKoiEnv` in `environment/koikoienv.py`, a [Gymnasium](https://gymnasium.farama.org/) environment. The game rules are in [RULES.md](RULES.md). Everything here is the interface and training setup, and can change without changing the game.
+This page describes `KoiKoiEnv` in `holokkrl/envs/koikoi_env.py`, a [Gymnasium](https://gymnasium.farama.org/) environment, registered as `KoiKoi-v0`. The game rules are in [RULES.md](RULES.md). Everything here is the interface and training setup, and can change without changing the game.
 
 ## Overview
 
@@ -45,7 +45,7 @@ The opponent's hand and the deck order are hidden. The observation doesn't say w
 
 ## Opponent
 
-Despite the `opponent_type="random"` argument, which is ignored, the built-in opponent is one fixed policy:
+The built-in opponent is one fixed policy:
 
 - It plays a random card that can capture, or any random card if none can.
 - It picks randomly between two matches.
@@ -53,7 +53,7 @@ Despite the `opponent_type="random"` argument, which is ignored, the built-in op
 
 ## Rewards
 
-Rewards are training signals and not part of the rules. They are summed per step:
+Rewards are training signals and not part of the rules. They are defined in `holokkrl/envs/rewards.py` and summed per step:
 
 | Component | Value | When |
 |---|---|---|

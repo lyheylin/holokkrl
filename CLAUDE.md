@@ -13,10 +13,11 @@ Goal: train a model that is proficient at winning Koi-Koi. See `README.md` for a
 The virtualenv is at `~/.venvs/holokkrl`, because `/mnt/e` doesn't allow symlinks. Run from the repo root:
 
 - Tests: `~/.venvs/holokkrl/bin/python -m pytest`
-- Smoke run: `~/.venvs/holokkrl/bin/python -m environment.test`
+- Smoke run: `~/.venvs/holokkrl/bin/python -m scripts.random_match`
 
 ## Conventions
 
 - Judge agents by game points per round and match win rate, never by shaped reward.
-- `environment/test_with_agent.py` overwrites `ppo_koikoi.zip` in the current directory. Run it from elsewhere when experimenting.
-- Working files use CRLF, but the repo stores LF. Stage with `git -c core.autocrlf=input add <files>` so commits show only real changes, and use `git diff --ignore-space-at-eol` to review. `.gitignore` and `environment/test_with_agent.py` show as modified only because of line endings.
+- `scripts/train_ppo.py` overwrites `models/ppo_koikoi.zip` by default. Pass `--output` when experimenting.
+- Package code goes in `holokkrl/`, runnable entry points in `scripts/`. `models/` and `references/` are local and not in git.
+- Working files use CRLF, but the repo stores LF. Stage with `git -c core.autocrlf=input add <files>` so commits show only real changes, and use `git diff --ignore-space-at-eol` to review.

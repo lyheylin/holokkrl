@@ -2,9 +2,9 @@
 import numpy as np
 import pytest
 
-from environment.card_data import CARD_DATA
-from environment.card_utils import detect_yaku
-from environment.koikoienv import KoiKoiEnv
+from holokkrl.envs import rewards
+from holokkrl.envs.koikoi_env import KoiKoiEnv
+from holokkrl.game.yaku import detect_yaku
 
 CRANE, CURTAIN, MOON, RAINMAN, PHOENIX = 0, 8, 28, 40, 44
 
@@ -33,8 +33,8 @@ def rigged(hand, opp, field, deck, collected=(), opp_collected=(), max_rounds=3)
     env.field = sorted(field)
     env.deck = list(deck)
     env.collected_cards = [list(collected), list(opp_collected)]
-    env._player_progress = env._yaku_progress(env.collected_cards[0])
-    env._opponent_progress = env._yaku_progress(env.collected_cards[1])
+    env._player_progress = rewards.yaku_progress(env.collected_cards[0])
+    env._opponent_progress = rewards.yaku_progress(env.collected_cards[1])
     env.best_yaku_points = {
         0: detect_yaku(env.collected_cards[0])[1],
         1: detect_yaku(env.collected_cards[1])[1],
@@ -59,59 +59,6 @@ def snapshot(env):
     )
 
 
-# --- Deck and yaku ---
-
-def test_deck_composition():
-    assert [c[0] for c in CARD_DATA] == list(range(48))
-    counts = {t: sum(c[2] == t for c in CARD_DATA) for t in ("bright", "animal", "ribbon", "plain")}
-    assert counts == {"bright": 5, "animal": 9, "ribbon": 10, "plain": 24}
-    assert all(sum(c[1] == m for c in CARD_DATA) == 4 for m in range(12))
-
-
-@pytest.mark.parametrize("cards, expected", [
-    ([CRANE, CURTAIN], []),
-    ([CRANE, CURTAIN, MOON], [("Sankou", 5)]),
-    ([CRANE, CURTAIN, RAINMAN], []),
-    ([CRANE, CURTAIN, MOON, PHOENIX], [("Shikou", 8)]),
-    ([CRANE, CURTAIN, MOON, RAINMAN], [("Ame-Shikou", 7)]),
-    ([CRANE, CURTAIN, MOON, RAINMAN, PHOENIX], [("Gokou", 10)]),
-])
-def test_bright_yaku(cards, expected):
-    assert detect_yaku(cards)[0] == expected
-
-
-@pytest.mark.parametrize("cards, expected", [
-    ([20, 24, 36], [("Inoshikachou", 5)]),
-    ([20, 24], []),
-    ([1, 5, 9], [("Akatan", 5)]),
-    ([1, 5, 13], []),
-    ([21, 33, 37], [("Aotan", 5)]),
-    ([21, 33, 13], []),
-    ([1, 5, 13, 17], []),
-    ([1, 5, 13, 17, 25], [("Tanzaku", 1)]),
-    ([1, 5, 13, 17, 25, 42], [("Tanzaku", 2)]),
-    ([4, 12, 16, 29], []),
-    ([4, 12, 16, 29, 32], [("Tane", 1)]),
-    ([4, 12, 16, 29, 32, 41], [("Tane", 2)]),
-    ([2, 3, 6, 7, 10, 11, 14, 15, 18], []),
-    ([2, 3, 6, 7, 10, 11, 14, 15, 18, 19], [("Kasu", 1)]),
-    ([2, 3, 6, 7, 10, 11, 14, 15, 18, 19, 22], [("Kasu", 2)]),
-])
-def test_other_yaku(cards, expected):
-    assert detect_yaku(cards)[0] == expected
-
-
-def test_akatan_and_aotan_score_together():
-    yaku, points = detect_yaku([1, 5, 9, 21, 33, 37])
-    assert {n for n, _ in yaku} == {"Akatan", "Aotan", "Tanzaku"} and points == 12
-
-
-def test_every_yaku_has_reward_entries():
-    names = {n for n, _ in detect_yaku(range(48))[0]}
-    names |= {"Sankou", "Shikou", "Ame-Shikou"}
-    assert names == set(KoiKoiEnv.YAKU_REWARDS) == set(KoiKoiEnv.YAKU_FORMATION_BONUS)
-
-
 # --- Koi-Koi scoring ---
 
 def sankou_env(**kwargs):
@@ -131,8 +78,8 @@ def test_points_are_not_banked_until_stop():
     _, reward, *_, info = form_sankou(env)
     assert info["awaiting_koikoi"] and env.koikoi_pending
     assert env.your_score == 0 and env.your_round_score == 0
-    assert info["formation_bonus"] == env.YAKU_FORMATION_BONUS["Sankou"]
-    assert info["ongoing_yaku_reward"] == env.YAKU_REWARDS["Sankou"]
+    assert info["formation_bonus"] == rewards.FORMATION_BONUSES["Sankou"]
+    assert info["ongoing_yaku_reward"] == rewards.ONGOING_YAKU_REWARDS["Sankou"]
     # Shaping for capturing the bright and the yaku rewards survive the decision step.
     assert reward == pytest.approx(0.8 + 0.12 + 12 + 1.5)
 
@@ -279,6 +226,13 @@ def test_formation_bonus_is_paid_once_and_ongoing_every_turn():
     env.step(env.KOIKOI_ACTION)
     _, _, _, _, info = env.step(play(env, 5))
     assert info["formation_bonus"] == 0 and info["ongoing_yaku_reward"] == 1.5
+
+
+def test_yaku_formed_together_are_reported_in_stable_order():
+    env = rigged(hand=[9, 6], opp=[46, 47], field=[CURTAIN], deck=[20, 21, 22, 23],
+                 collected=[CRANE, MOON, 1, 5])
+    _, _, _, _, info = env.step(play(env, 9, CURTAIN))
+    assert info["new_yakus"] == ["Akatan", "Sankou"]
 
 
 def test_opponent_draw_capture_counts_as_blocking():
@@ -531,6 +485,14 @@ def test_invariants_over_random_matches():
             assert env.observation_space.contains(obs)
         assert env.round_count == env.max_rounds
     assert max_field > env.field_size
+
+
+def test_registered_with_gymnasium():
+    import gymnasium as gym
+    import holokkrl.envs  # noqa: F401
+    env = gym.make("KoiKoi-v0", max_rounds=2)
+    env.reset(seed=0)
+    assert env.unwrapped.max_rounds == 2
 
 
 def test_passes_stable_baselines_env_checker():
