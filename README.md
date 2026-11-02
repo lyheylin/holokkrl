@@ -35,17 +35,20 @@ Run these from the repository root:
 python -m pytest
 
 # Play in the terminal against the built-in opponent (add --log to write a log file)
-python -m harness.test_harness
+python -m scripts.play
 
 # Watch one match of random legal moves
-python -m environment.test
+python -m scripts.random_match
+
+# Run the placeholder PPO training (see --help for options)
+python -m scripts.train_ppo
 ```
 
 To use the environment in code:
 
 ```python
 import numpy as np
-from environment.koikoienv import KoiKoiEnv
+from holokkrl.envs.koikoi_env import KoiKoiEnv
 
 env = KoiKoiEnv(max_rounds=12)
 obs, info = env.reset(seed=0)
@@ -60,22 +63,28 @@ while not (terminated or truncated):
 print(f"You {env.your_score} - Opponent {env.opponent_score}")
 ```
 
-`environment/test_with_agent.py` trains the placeholder PPO agent. It writes `ppo_koikoi.zip` to the current directory, replacing any file with that name. An existing `ppo_koikoi.zip` from before the engine fixes won't load.
+`scripts.train_ppo` saves to `models/ppo_koikoi.zip` by default, replacing any file already there, and `--output` picks another path. A `ppo_koikoi.zip` from before the engine fixes won't load.
 
 ## Project layout
 
 ```
-environment/
-  card_data.py        The 48-card deck
-  card_utils.py       Card lookups, formatting and yaku detection
-  koikoienv.py        Game logic, built-in opponent and rewards (KoiKoiEnv)
-  test.py             Random-move smoke script
-  test_with_agent.py  Placeholder PPO training script
-harness/
-  test_harness.py     Play in the terminal
+holokkrl/              The Python package
+  game/
+    cards.py           The 48-card deck and card lookups
+    yaku.py            Yaku detection
+  envs/
+    koikoi_env.py      KoiKoiEnv: game flow and built-in opponent
+    rewards.py         Reward tables and calculations
+scripts/               Things you run
+  play.py              Play in the terminal
+  random_match.py      Random-move smoke test
+  train_ppo.py         Placeholder PPO training
 tests/
-  test_koikoi_env.py  Rules, reward and invariant tests
-docs/                 Rules, environment reference and roadmap
+  test_cards_yaku.py   Deck and yaku tests
+  test_koikoi_env.py   Rules, reward and invariant tests
+docs/                  Rules, environment reference and roadmap
+models/                Trained models (not in git)
+references/            Local reference material (not in git)
 ```
 
 ## Changing the rules
