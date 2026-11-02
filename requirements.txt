@@ -1,0 +1,13 @@
+# Python 3.12. Versions match the stack ppo_koikoi.zip was trained with.
+# On WSL, /mnt/e does not allow symlinks, so the venv lives on the Linux filesystem:
+#   uv venv --python 3.12 ~/.venvs/holokkrl
+#   uv pip install --python ~/.venvs/holokkrl -r requirements.txt --index-strategy unsafe-best-match
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+gymnasium==1.2.0
+numpy==2.1.1
+stable-baselines3==2.7.0
+torch==2.4.1+cpu
+
+# Development
+pytest>=8,<9

@@ -69,7 +69,7 @@ CARD_DATA = [
     (43, 10, 'plain', None),
 
     #Dec
-    (44, 11, 'animal', None),
+    (44, 11, 'bright', None), #phoenix
     (45, 11, 'plain', None),
     (46, 11, 'plain', None),
     (47, 11, 'plain', None),
