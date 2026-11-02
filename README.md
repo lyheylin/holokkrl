@@ -1,6 +1,6 @@
 # holokkrl
 
-A reinforcement learning project with one goal: train a model that is proficient at winning [Koi-Koi](docs/RULES.md), the two-player Japanese card game played with a hanafuda deck.
+A reinforcement learning project with one goal: train a model that is proficient at winning [Koi-Koi](docs/RULES.md), the two-player Japanese card game played with a hanafuda deck. The first target is the Koi-Koi mode of hololive Holo's Hanafuda.
 
 ## Status
 
@@ -13,6 +13,8 @@ A reinforcement learning project with one goal: train a model that is proficient
 | [docs/RULES.md](docs/RULES.md) | **The source of truth for game rules** |
 | [docs/ENVIRONMENT.md](docs/ENVIRONMENT.md) | Actions, observations, rewards and the built-in opponent |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | The phased plan, baselines and the definition of "proficient" |
+| [docs/HOLOS_HANAFUDA_CARDS.md](docs/HOLOS_HANAFUDA_CARDS.md) | How the game's redrawn cards map to the engine's card IDs |
+| [docs/HOLOS_HANAFUDA_CHECKLIST.md](docs/HOLOS_HANAFUDA_CHECKLIST.md) | Results of checking the rules in Holo's Hanafuda, and what's still open |
 
 ## Setup
 
@@ -101,11 +103,13 @@ tests/
   test_cards_yaku.py   Deck and yaku tests
   test_koikoi_env.py   Rules, reward and invariant tests
   test_rule_flags.py   Rule flags and model rule checks
+  test_score_screens.py  Score screens from Holo's Hanafuda
 docs/                  Rules, environment reference and roadmap
 models/                Trained models (not in git)
 references/            Local reference material (not in git)
+screenshots/           Evidence from Holo's Hanafuda (images not in git)
 ```
 
 ## Changing the rules
 
-Rule changes start in [docs/RULES.md](docs/RULES.md): update the ruleset and its changelog, then change the code and tests to match. A rules change makes models trained under the old rules obsolete.
+Rule changes start in [docs/RULES.md](docs/RULES.md): update the ruleset and its changelog, then change the code and tests to match. A rules change makes models trained under the old rules obsolete. [Section 11](docs/RULES.md#11-how-rules-are-set-and-changed) lists where each rule is set in the code and the steps to follow.

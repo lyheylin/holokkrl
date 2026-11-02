@@ -1,6 +1,6 @@
 # Roadmap
 
-**Goal:** train a model that is proficient at actually winning Koi-Koi games.
+**Goal:** train a model that is proficient at actually winning Koi-Koi games, starting with the traditional Koi-Koi mode of **hololive Holo's Hanafuda**.
 
 "Proficient" is defined in [Phase 6](#phase-6-proficiency-validation) so that the goal can be tested. All numeric targets are provisional, and are expected to be recalibrated when Phase 2 produces real measurements.
 
@@ -36,12 +36,13 @@ Two conclusions shape this plan:
 
 ## Phase 0: Foundations
 
-**Goal:** a clean, documented starting point.
+**Goal:** lock the engine to the rules of the target game. The engine fixes, documentation and project structure are already on `master`.
 
-- Merge the documentation and project structure into `master`. The engine fixes are already merged.
-- **Decide the target ruleset**, and whether to add the common rules v1 leaves out ([RULES.md section 8](RULES.md#common-rules-this-ruleset-leaves-out)). Multipliers especially change when Koi-Koi is worth declaring, so a model trained without them will misjudge that decision under common rules.
+1. Settle the game's rules using the [checklist](HOLOS_HANAFUDA_CHECKLIST.md). The results are recorded in [RULES.md section 10](RULES.md#10-target-game-holos-hanafuda), and the checklist's [open items](HOLOS_HANAFUDA_CHECKLIST.md#open-items) track what's unsettled as more screenshots arrive. Multipliers especially change when Koi-Koi is worth declaring, so a model trained without the right ones will misjudge that decision.
+2. Implement the settings planned in section 10, off by default, plus a preset that turns on the right ones. [RULES.md section 11](RULES.md#11-how-rules-are-set-and-changed) lists where each one goes.
+3. Test against saved score screens from the game, and re-measure the baselines under the preset.
 
-**Exit:** the documentation and structure are on `master`, and the target ruleset is written in RULES.md and implemented, with tests.
+**Exit:** the preset is implemented, tested and documented, every checklist item is confirmed by the game or marked unverified with its assumption stated, and baselines are re-measured under the preset.
 
 ## Phase 1: Two-player engine
 
@@ -111,10 +112,10 @@ Each item is an independent experiment, run in this order and kept only if the a
 **Goal:** check the agent against opponents outside its own training.
 
 - Add a way for people to play the trained agent, starting with the terminal harness.
-- Run it against experienced human players, and against other Koi-Koi software where practical, under matching rules.
+- Run it against experienced human players, and against Holo's Hanafuda's offline CPU, under matching rules. Playing the game's CPU stays manual: automating the game client isn't planned.
 - Review its losses for patterns, and feed any weaknesses back into Phases 3 to 5.
 
-**Definition of proficient** (provisional), under the ruleset chosen in Phase 0:
+**Definition of proficient** (provisional), under the Holo's Hanafuda preset from Phase 0:
 
 1. It beats every scripted bot and earlier model, with confidence intervals above zero, over at least 10,000 rounds each.
 2. A trained exploiter gains less than 0.5 points per round against it.
