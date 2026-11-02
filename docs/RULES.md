@@ -2,7 +2,7 @@
 
 **This file is the source of truth for the game rules in this project.** If the code and this file disagree, treat it as a bug and fix the code, or change this file on purpose and record it in the [changelog](#changelog). Don't settle a rules question from memory or another website.
 
-Koi-Koi has no single official rulebook, and sources disagree on many details. This ruleset describes what the engine implements today. It uses a common yaku table with no score multipliers and no instant wins. Section 8 lists every place where other sources differ, so that dropping a rule is a recorded decision. Section 9 lists the rules you can switch with a flag.
+Koi-Koi has no single official rulebook, and sources disagree on many details. This ruleset describes what the engine implements today. It uses a common yaku table with no score multipliers and no instant wins. Section 8 lists every place where other sources differ, so that dropping a rule is a recorded decision. Section 9 lists the rules you can switch with a flag, section 10 gives the rules of the game the first model is being trained for, and section 11 explains where rules are set and how to change them.
 
 Rule IDs such as `R4.2` are stable. Use them in code comments, tests and discussion.
 
@@ -153,6 +153,126 @@ Flags switch between versions of a rule, because the games a model plays on may 
 
 **R9.4** The ruleset version in this file's title must match `RULESET_VERSION` in `holokkrl/game/rules.py`. Raise it whenever gameplay changes. Changes that only reword this file don't need a new version.
 
+## 10. Target game: Holo's Hanafuda
+
+The first model is being trained for the traditional Koi-Koi mode of **hololive Holo's Hanafuda**. Holo Awase, its power-up variant, is out of scope.
+
+**This section is that game's ruleset, but the engine doesn't run it yet.** The engine follows sections 1 to 7 until the settings below are built. To look up a Holo's Hanafuda rule, check here first. If a rule isn't listed as different, sections 1 to 7 apply.
+
+The checklist IDs below refer to [the checklist](HOLOS_HANAFUDA_CHECKLIST.md), which holds the recorded answers. Its `D` items are separate from the rulings `D1` to `D7` in section 8.
+
+Each rule has one of these statuses:
+
+- **Game:** checked in the game and recorded in the checklist.
+- **Guide:** a published guide says so, but it wasn't seen in the game.
+- **Assumed:** not seen, so the most common rule is assumed.
+
+### Rules that differ from sections 1 to 7
+
+Setting names are proposals until they're built. Each setting's default keeps the behaviour of sections 1 to 7, and the last value shown is the one this game uses.
+
+| ID | Holo's Hanafuda rule | Replaces | Planned setting | Checklist | Status |
+|---|---|---|---|---|---|
+| R10.1 | Hanami (curtain + sake cup, cards 8 and 32) and Tsukimi (moon + sake cup, cards 28 and 32) score 5 each, or 10 together. They stack with bright yaku. Capturing a November card or the rain man doesn't cancel them. | R5.2 | `viewing_yaku`: off → on | A6 to A10 | Game |
+| R10.2 | Akatan and Aotan gain 1 point per extra ribbon. Inoshikachou has no such bonus. | R5.2, ruling D3 | `ribbon_set_extra_points`: 0 → 1 | A12, A15 | Game, but see open item G2 |
+| R10.3 | The sake cup also counts as a plain for Kasu, and it's still an animal. | R1.2, R5.2 | `sake_cup_counts_as_plain`: off → on | A20 | Game |
+| R10.4 | An opening hand with four of a month (Teshi) or four pairs (Kuttsuki) wins 6 points at once. If both players are dealt one, the round restarts with the same dealer. | R3.1 | `opening_hand_win_points`: 0 → 6 | A22, B6 to B8, G4 | Game |
+| R10.5 | The dealer switches after a drawn round. | R2.4, R7.2 | `draw_switches_dealer`: off → on | B3 | Game |
+| R10.6 | If your opponent declared Koi-Koi and you complete a yaku, the round ends at once and you score it, with no decision. So only one player can declare Koi-Koi in a round. | R6.2 | `koikoi_ends_on_opponent_yaku`: off → on | D4, D5 | Game. The one-declarer part follows from it, and wasn't seen. |
+| R10.7 | A yaku total of 7 or more is doubled. | R6.6 | `double_at_seven`: off → on | E1 | Game |
+| R10.8 | A score is doubled if the opponent had declared Koi-Koi. With R10.7 this makes ×4. | R6.6 | `double_against_koikoi`: off → on | E2, E3 | Game |
+| R10.9 | Four pairs on the field void the deal. | R3.2 | `field_four_pairs_void_deal`: off → on | B5 | Assumed |
+
+R10.7 and R10.8 are applied to the yaku total. A total of 5 scored after the opponent declared is worth 10. A total of 7 is worth 14, or 28 after the opponent declared.
+
+### Rules that match sections 1 to 7
+
+These need no new setting. If one turns out to be wrong, it moves to the table above.
+
+| Rule | Same as | Checklist | Status |
+|---|---|---|---|
+| Deck, 8 cards each and 8 on the field, dealer plays first | R1.1, R3.1, R4.1 | | Guide |
+| Bright yaku points, and 3 brights with the rain man don't score | R5.2, R5.3 | A1 to A5 | Game |
+| Inoshikachou, Akatan and Aotan are worth 5 each before any R10.2 bonus | R5.2 | A11, A13, A14 | Game |
+| Akatan and Aotan add together, and Tanzaku also scores | R5.4 | A16, G1 | Game |
+| Tanzaku 5 cards, Tane 5 cards, Kasu 10 cards, each worth 1 and +1 per extra | R5.2 | A17 to A19 | Game |
+| All yaku stack, with one bright yaku at most | R5.2 | A21 | Game |
+| First dealer is random, and the round winner deals next | R2.3, R2.4 | B1, B2 | Game |
+| Four of a month on the field voids the deal | R3.2 | B4 | Assumed |
+| A non-capturing card is playable while another card could capture, so `must_capture_if_able` stays off | R4.2, R9.1 | C1 | Game |
+| A card with a match must capture, you choose between two matches, and no card is wild | R4.3 | C2 to C5 | Game |
+| Koi-Koi can be repeated, a higher Tanzaku, Tane or Kasu re-offers it, and it's offered on the final turn | R6.1, R6.4, R6.7 | D1 to D3 | Game |
+| If you declared and your opponent scores, you score 0 | R6.5 | D6 | Game |
+| Yaku are checked after the draw, including when the played card completes one | R5.1 | G3 | Game |
+| Your own Koi-Koi and face-up brights don't multiply, there's no score cap, and only the winner gains points | R6.6 | E4 to E7 | Game |
+| Hands run out and nobody holds a yaku: 0 for both | R7.2 | F1 | Game |
+| Hands run out with a yaku held or after a Koi-Koi: 0 for both | R7.2 | F2, F3 | Assumed |
+| Match length is 3 rounds | R2.1 | F4 | Guide. Whether it can be changed wasn't seen. |
+| Equal totals are a drawn match | R2.2 | F5 | Assumed |
+| Players start from 0, and a match has no early end | R2.2 | F6 | Game |
+
+### Still open
+
+The checklist's [open items](HOLOS_HANAFUDA_CHECKLIST.md#open-items) track everything unsettled. R10.2 can't be built exactly until item G2 is answered, because it isn't known how the bonus works when ribbons overlap. Three rounds of score screens are saved and match the engine (`tests/test_score_screens.py`), but they only show Tane, Tanzaku and Kasu at low scores. None of the rules R10.1 to R10.9 has been tested against a score screen yet.
+
+The game redraws the deck. [HOLOS_HANAFUDA_CARDS.md](HOLOS_HANAFUDA_CARDS.md) maps its cards to the card IDs in section 1. Each month's order matches, and the art can be misleading, so go by position.
+
+Sources for this section, accessed 2026-11-02:
+
+- [4Gamer rule guide](https://www.4gamer.net/games/873/G087373/20250715033/): deal, turns, cards, 3 rounds and doubling. Its yaku table is an image, so point values could not be read.
+- [Famitsu review](https://www.famitsu.com/article/202507/47715): the stop or Koi-Koi decision, and that yaku lists can be viewed in the game.
+- [Steam demo page](https://store.steampowered.com/app/3758120/hololive_Holos_Hanafuda_Demo/): the demo includes Koi-Koi.
+- [Official site](https://holo-no-hanafuda.com/): checked, and no rules page was found.
+
+## 11. How rules are set and changed
+
+### Where each rule is set
+
+Only `must_capture_if_able` and the match length can be set today. Everything else is written into the code, and the last column is what would need to change to make it configurable. The file names are short for `holokkrl/game/` (`rules.py`, `cards.py`, `yaku.py`) and `holokkrl/envs/` (`koikoi_env.py`, `rewards.py`).
+
+| Rule | Set in | Today | Affected by |
+|---|---|---|---|
+| Rule flags and ruleset version | `RuleConfig`, `RULESET_VERSION` in `rules.py` | Configurable | |
+| R1: deck, months and card types | `CARD_DATA` in `cards.py` | Fixed | |
+| R2.1: match length | `max_rounds` argument of `KoiKoiEnv` | Configurable, but not part of a model's recorded rules | |
+| R2.3: first dealer | `KoiKoiEnv.reset` | Fixed | |
+| R2.4: next dealer | `KoiKoiEnv._end_round` | Fixed | R10.5 |
+| R3.1: deal sizes | `max_hand_size`, `field_size` in `KoiKoiEnv.__init__` | Fixed | |
+| R3.2: void deals | `KoiKoiEnv._deal` | Fixed | R10.9 |
+| Instant wins at the deal | Not implemented. They'd go in `KoiKoiEnv._start_new_round`. | Absent | R10.4 |
+| R4.2, R9.1: legal plays | `KoiKoiEnv.action_masks` | Flag | |
+| R4.3: captures | `KoiKoiEnv._capture`, `_field_matches` | Fixed | |
+| R5: yaku, requirements and points | `detect_yaku` in `yaku.py` | Fixed | R10.1, R10.2, R10.3 |
+| R6.1, R6.2: decision and stop score, for you | `KoiKoiEnv._check_player_yaku`, `_step_koikoi_decision` | Fixed | R10.6, R10.7, R10.8 |
+| R6.1, R6.2: decision and stop score, for the opponent | `KoiKoiEnv._opponent_turn` | Fixed | R10.6, R10.7, R10.8 |
+| R7: end of a round | `KoiKoiEnv._check_round_end`, `_end_round` | Fixed | |
+
+Some things that aren't rules still depend on them:
+
+- **Both players:** the player and the built-in opponent have separate code for decisions and scoring. A rule change there has to be made in both.
+- **Score limits:** `max_round_points` in `KoiKoiEnv.__init__` sets the observation's score ranges from `detect_yaku`. A multiplier has to raise it, or scores will fall outside the observation space.
+- **Rewards:** `ONGOING_YAKU_REWARDS` and `FORMATION_BONUSES` in `rewards.py` are keyed by yaku name. A new yaku earns no shaped reward until it's added there. `yaku_progress` also counts cards by a single type.
+- **Instant wins:** a round can end before anyone acts, including inside `reset`, which nothing handles yet.
+
+### How to change a rule
+
+1. **Record it.** Update sections 1 to 7 or 10 here. Holo's Hanafuda results also go in the checklist. Add a changelog entry.
+2. **Add a setting if the rule varies between games.** Add a field to `RuleConfig` with a default that keeps the current behaviour, list it in section 9, and read it through `self.rules`.
+3. **Change the code** in the places listed above, and add any script option needed.
+4. **Raise the version** if gameplay changed (R9.4). Saved models are then refused, and so are models saved before a new setting was added, because the recorded rules no longer match (R9.2).
+5. **Test it** with the setting on and off, and confirm that the default behaviour is unchanged.
+6. **Re-measure the baselines** in [ROADMAP.md](ROADMAP.md) if the target rules changed.
+
+If the game turns out to work differently and the setting already exists, only the preset value, its test and the tables here need changing.
+
+### Making more rules configurable
+
+- `RuleConfig` is the one place a game's rules are chosen. Anything else, such as a preset or a config file, should only build a `RuleConfig`, so that models keep recording and matching their rules.
+- `signature()` records every `RuleConfig` field, so a new setting is automatically tied to saved models.
+- Use a number for any setting with a value that might vary, such as `opening_hand_win_points`, and an on or off flag otherwise.
+- A planned `RuleConfig.holos_hanafuda()` preset will turn on the values in section 10, with a `--holos-hanafuda` script option.
+- To make a fixed rule configurable, such as the yaku points in `detect_yaku`, move its value into `RuleConfig` with the current value as the default.
+
 ## Sources
 
 Accessed 2026-11-02. These were read through automated page extraction, so check the original before relying on a fine detail.
@@ -166,5 +286,7 @@ Accessed 2026-11-02. These were read through automated page extraction, so check
 
 ## Changelog
 
+- **v1.1, update (2026-11-03):** Recorded the Holo's Hanafuda results and card mapping in section 10, and added section 11 on how rules are set and changed. Gameplay is unchanged.
+- **v1.1, update (2026-11-02):** Added section 10 on the target game. Gameplay is unchanged.
 - **v1.1 (2026-11-02):** Added rule flags (section 9) and `must_capture_if_able` for ruling D1. Default gameplay is unchanged.
 - **v1 (2026-11-02):** First version, documenting the engine at commit `d054d12`.

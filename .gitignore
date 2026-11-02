@@ -207,3 +207,7 @@ models/
 
 # Reference documents
 references/
+
+# Game screenshots contain the game's art, so only the folder's README is tracked
+screenshots/*
+!screenshots/README.md
